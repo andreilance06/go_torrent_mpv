@@ -5,7 +5,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"mime"
 	"net"
@@ -30,6 +29,16 @@ type ClientConfig struct {
 	Readahead   int64
 }
 
+const (
+	torrentPattern   = "\\.torrent$"
+	infoHashPattern  = "^[0-9a-fA-F]{40}$"
+	magnetPattern    = "^magnet:"
+	httpPattern      = "^https?"
+	shutdownTimeout  = 9 * time.Second
+	defaultReadahead = 32 * 1024 * 1024 // 32 MB
+	defaultHTTPPort  = 6969
+)
+
 func GetLocalIPs() ([]net.IP, error) {
 	var ips []net.IP
 	addresses, err := net.InterfaceAddrs()
@@ -38,10 +47,12 @@ func GetLocalIPs() ([]net.IP, error) {
 	}
 
 	for _, addr := range addresses {
-		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
-			if ipnet.IP.To4() != nil {
-				ips = append(ips, ipnet.IP)
-			}
+		ipnet, ok := addr.(*net.IPNet)
+		if !ok || ipnet.IP.IsLoopback() {
+			continue
+		}
+		if ip := ipnet.IP.To4(); ip != nil {
+			ips = append(ips, ip)
 		}
 	}
 	return ips, nil
@@ -49,42 +60,43 @@ func GetLocalIPs() ([]net.IP, error) {
 
 func InitClient(userConfig *ClientConfig) (*torrent.Client, error) {
 	config := torrent.NewDefaultClientConfig()
-
 	config.DefaultStorage = storage.NewBoltDB(userConfig.DownloadDir)
 	config.DisableUTP = userConfig.DisableUTP
-	config.DisableWebseeds = false
-	config.DisableWebtorrent = false
 	config.Seed = true
 
 	c, err := torrent.NewClient(config)
-	return c, err
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize torrent client: %w", err)
+	}
+	return c, nil
 }
 
-func InitServer(c *torrent.Client, config *ClientConfig, serverErr chan error) *http.Server {
+func InitServer(c *torrent.Client, config *ClientConfig) *http.Server {
 	mux := http.NewServeMux()
-	AddRoutes(mux, c, config, serverErr)
-	srv := &http.Server{
+	server := &http.Server{
 		Addr:    fmt.Sprintf(":%d", config.Port),
 		Handler: mux,
 	}
-	return srv
+	AddRoutes(mux, c, server, config)
+	return server
 }
 
 func BuildPlaylist(t *torrent.Torrent, config *ClientConfig) (string, error) {
 	<-t.GotInfo()
-	playlist := []string{"#EXTM3U"}
 
 	ips, err := GetLocalIPs()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to get local IPs: %w", err)
 	}
-	localIp := ips[0]
+
+	localIP := ips[0]
+	playlist := []string{"#EXTM3U"}
 
 	for _, file := range t.Files() {
 		ext := mime.TypeByExtension(filepath.Ext(file.DisplayPath()))
 		if strings.HasPrefix(ext, "video") {
-			playlist = append(playlist, "#EXTINF:0,"+filepath.Base(file.DisplayPath()))
-			playlist = append(playlist, fmt.Sprintf("http://%s:%d/torrents/%s/%s", localIp, config.Port, t.InfoHash(), file.DisplayPath()))
+			playlist = append(playlist, fmt.Sprintf("#EXTINF:0,%s", filepath.Base(file.DisplayPath())))
+			playlist = append(playlist, fmt.Sprintf("http://%s:%d/torrents/%s/%s", localIP, config.Port, t.InfoHash(), file.DisplayPath()))
 		}
 	}
 
@@ -92,125 +104,90 @@ func BuildPlaylist(t *torrent.Torrent, config *ClientConfig) (string, error) {
 }
 
 func AddTorrent(c *torrent.Client, id string) (*torrent.Torrent, error) {
-
 	log.Printf("AddTorrent: got %s", id)
-	matched, err := regexp.MatchString("^https?", id)
-	if err == nil && matched {
-		resp, httpErr := http.Get(id)
-		if httpErr != nil {
-			return nil, httpErr
+
+	switch {
+	case isMatched(httpPattern, id):
+		resp, err := http.Get(id)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get torrent from URL: %w", err)
 		}
 		defer resp.Body.Close()
 
-		reader := io.Reader(resp.Body)
-		metainf, loadErr := metainfo.Load(reader)
-		if loadErr != nil {
-			return nil, loadErr
+		metaInfo, err := metainfo.Load(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load torrent metadata: %w", err)
 		}
 
-		t, addErr := c.AddTorrent(metainf)
-		if addErr != nil {
-			return nil, addErr
-		}
+		return c.AddTorrent(metaInfo)
 
-		log.Print("remote")
-		return t, nil
-	}
+	case isMatched(torrentPattern, id):
+		return c.AddTorrentFromFile(id)
 
-	matched, err = regexp.MatchString("\\.torrent$", id)
-	if err == nil && matched {
-		t, addErr := c.AddTorrentFromFile(id)
-		if addErr != nil {
-			return nil, addErr
-		}
-		log.Print("file")
-		return t, nil
-	}
-
-	matched, err = regexp.MatchString("^[0-9a-fA-F]{40}$", id)
-	if err == nil && matched {
+	case isMatched(infoHashPattern, id):
 		ih := infohash.FromHexString(id)
 		t, _ := c.AddTorrentInfoHash(ih)
-
-		log.Print("infohash")
 		return t, nil
-	}
 
-	matched, err = regexp.MatchString("^magnet:", id)
-	if err == nil && matched {
-		t, addErr := c.AddMagnet(id)
-		if addErr != nil {
-			return nil, addErr
-		}
-		log.Print("magnet")
-		return t, nil
-	}
+	case isMatched(magnetPattern, id):
+		return c.AddMagnet(id)
 
-	return nil, errors.New("invalid torrent id")
+	default:
+		return nil, errors.New("invalid torrent id")
+	}
 }
 
-func run(ctx context.Context, config *ClientConfig) []error {
+func isMatched(pattern, input string) bool {
+	matched, _ := regexp.MatchString(pattern, input)
+	return matched
+}
+
+func run(ctx context.Context, config *ClientConfig) error {
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt)
 	defer cancel()
 
-	errs := make([]error, 0)
-
-	defer func() {
-		err := os.Remove(filepath.Join(config.DownloadDir, "bolt.db"))
-		if err != nil {
-			errs = append(errs, err)
-		}
-	}()
-
 	c, err := InitClient(config)
 	if err != nil {
-		errs = append(errs, err)
-		return errs
+		return err
 	}
 	defer c.Close()
 
-	serverErr := make(chan error)
+	server := InitServer(c, config)
+	serverErr := make(chan error, 1)
 	defer close(serverErr)
-	server := InitServer(c, config, serverErr)
 
 	go func() {
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			serverErr <- err
-		}
+		serverErr <- server.ListenAndServe()
 	}()
 
 	select {
 	case <-ctx.Done():
-		if ctx.Err() != nil {
-			errs = append(errs, ctx.Err())
-		}
+		log.Println("Shutdown initiated")
 	case err := <-serverErr:
-		if err != nil {
-			errs = append(errs, err)
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Printf("Server error: %v", err)
 		}
 	}
 
-	serverCtx, serverCancel := context.WithTimeout(context.Background(), 9*time.Second)
-	defer serverCancel()
-	err = server.Shutdown(serverCtx)
-	if err != nil {
-		errs = append(errs, err)
-	}
-
-	return errs
+	return nil
 }
 
 func main() {
 	DisableUTP := flag.Bool("DisableUTP", true, "Disables UTP")
 	DownloadDir := flag.String("DownloadDir", os.TempDir(), "Directory where downloaded files are stored")
-	Port := flag.Int("Port", 6969, "HTTP Server port")
-	Readahead := flag.Int64("Readahead", 32*1024*1024, "Number of bytes ahead of a read that should also be prioritized in preparation for futher reads")
+	Port := flag.Int("Port", defaultHTTPPort, "HTTP Server port")
+	Readahead := flag.Int64("Readahead", defaultReadahead, "Bytes ahead of read to prioritize")
 	flag.Parse()
 
-	config := ClientConfig{*DisableUTP, *DownloadDir, *Port, *Readahead}
+	config := ClientConfig{
+		DisableUTP:  *DisableUTP,
+		DownloadDir: *DownloadDir,
+		Port:        *Port,
+		Readahead:   *Readahead,
+	}
 
 	ctx := context.Background()
-	if err := run(ctx, &config); len(err) > 0 {
+	if err := run(ctx, &config); err != nil {
 		log.Fatal(err)
 	}
 }

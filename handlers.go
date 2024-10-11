@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -105,8 +106,22 @@ func HandleGetInfoHashFile(c *torrent.Client, config *ClientConfig) http.Handler
 	})
 }
 
-func HandleExit(serverErr chan error) http.Handler {
+func HandleExit(server *http.Server) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		serverErr <- nil
+		log.Println("Received shutdown request")
+		fmt.Fprint(w, "Server is shutting down...")
+
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+			defer cancel()
+
+			if err := server.Shutdown(ctx); err != nil {
+				log.Printf("Error during server shutdown: %v", err)
+				return
+			}
+
+			log.Println("Server shutdown completed")
+
+		}()
 	})
 }
