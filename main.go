@@ -165,7 +165,7 @@ func run(ctx context.Context, config *ClientConfig) error {
 		log.Println("Shutdown initiated")
 	case err := <-serverErr:
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Printf("Server error: %v", err)
+			return fmt.Errorf("server error: %s", err)
 		}
 	}
 
