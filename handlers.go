@@ -31,14 +31,14 @@ func HandlePostTorrents(c *torrent.Client, config *ClientConfig) http.Handler {
 		body, _ := io.ReadAll(reader)
 		t, err := AddTorrent(c, string(body))
 		if err != nil {
-			log.Printf("%s error: %s", r.URL.Path, err)
+			log.Printf("%s error: %v", r.URL.Path, err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
 		playlist, err := BuildPlaylist(t, config)
 		if err != nil {
-			log.Printf("%s error: %s", r.URL.Path, err)
+			log.Printf("%s error: %v", r.URL.Path, err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
@@ -58,7 +58,7 @@ func HandleGetInfoHash(c *torrent.Client, config *ClientConfig) http.Handler {
 
 		playlist, err := BuildPlaylist(t, config)
 		if err != nil {
-			log.Printf("%s error: %s", r.URL.Path, err)
+			log.Printf("%s error: %v", r.URL.Path, err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
