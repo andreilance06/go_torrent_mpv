@@ -109,7 +109,6 @@ func HandleGetInfoHashFile(c *torrent.Client, config *ClientConfig) http.Handler
 func HandleExit(server *http.Server) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Println("Received shutdown request")
-		fmt.Fprint(w, "Server is shutting down...")
 
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
