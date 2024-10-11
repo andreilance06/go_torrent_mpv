@@ -43,7 +43,7 @@ func GetLocalIPs() ([]net.IP, error) {
 	var ips []net.IP
 	addresses, err := net.InterfaceAddrs()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get local interface addresses: %w", err)
 	}
 
 	for _, addr := range addresses {
@@ -86,7 +86,7 @@ func BuildPlaylist(t *torrent.Torrent, config *ClientConfig) (string, error) {
 
 	ips, err := GetLocalIPs()
 	if err != nil {
-		return "", fmt.Errorf("failed to get local IPs: %w", err)
+		return "", err
 	}
 
 	localIP := ips[0]
