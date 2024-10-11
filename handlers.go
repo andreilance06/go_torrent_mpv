@@ -39,7 +39,7 @@ func HandlePostTorrents(c *torrent.Client, config *ClientConfig) http.Handler {
 		playlist, err := BuildPlaylist(t, config)
 		if err != nil {
 			log.Printf("%s error: %s", r.URL.Path, err)
-			w.WriteHeader(400)
+			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
