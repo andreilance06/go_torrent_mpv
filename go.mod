@@ -1,4 +1,4 @@
-module github.com/go_torrent_mpv
+module github.com/andreilance06/go_torrent_mpv
 
 go 1.23
 
