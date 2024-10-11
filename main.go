@@ -62,7 +62,7 @@ func InitClient(userConfig *ClientConfig) (*torrent.Client, error) {
 
 func InitServer(c *torrent.Client, config *ClientConfig, serverErr chan error) *http.Server {
 	mux := http.NewServeMux()
-	AddRoutes(mux, c, config,  serverErr)
+	AddRoutes(mux, c, config, serverErr)
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", config.Port),
 		Handler: mux,
