@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -34,6 +35,24 @@ func HandlePostTorrents(c *torrent.Client, config *ClientConfig) http.Handler {
 			log.Printf("%s error: %v", r.URL.Path, err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
+		}
+
+		err = os.MkdirAll(filepath.Join(config.DownloadDir, "torrents"), 0777)
+		if err != nil {
+			log.Printf("%s error: %v", r.URL.Path, err)
+		}
+
+		f, err := os.Create(filepath.Join(config.DownloadDir, "torrents", fmt.Sprintf("%s.torrent", t.Name())))
+		if err != nil {
+			log.Printf("%s error: %v", r.URL.Path, err)
+		} else {
+			defer f.Close()
+		}
+
+		infoBytes := t.Metainfo()
+		err = infoBytes.Write(f)
+		if err != nil {
+			log.Printf("%s error: %v", r.URL.Path, err)
 		}
 
 		playlist, err := BuildPlaylist(t, config)

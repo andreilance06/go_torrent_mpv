@@ -11,7 +11,8 @@ local opts = {
   DisableUTP = false,
   DownloadDir = os.getenv("tmp"),
   Port = 6969,
-  Readahead = 32 * 1024 * 1024
+  Readahead = 32 * 1024 * 1024,
+  ResumeTorrents = true
 }
 options.read_options(opts)
 

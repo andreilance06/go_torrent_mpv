@@ -23,10 +23,11 @@ import (
 )
 
 type ClientConfig struct {
-	DisableUTP  bool
-	DownloadDir string
-	Port        int
-	Readahead   int64
+	DisableUTP     bool
+	DownloadDir    string
+	Port           int
+	Readahead      int64
+	ResumeTorrents bool
 }
 
 const (
@@ -68,6 +69,27 @@ func InitClient(userConfig *ClientConfig) (*torrent.Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize torrent client: %w", err)
 	}
+
+	if !userConfig.ResumeTorrents {
+		return c, nil
+	}
+
+	files, err := os.ReadDir(filepath.Join(userConfig.DownloadDir, "torrents"))
+	if err != nil && os.IsNotExist(err) {
+		log.Printf("failed to retrieve saved torrents: %v", err)
+	}
+
+	for _, v := range files {
+		_, err := AddTorrent(c, filepath.Join(userConfig.DownloadDir, "torrents", v.Name()))
+		if err != nil {
+			log.Printf(
+				"failed to resume torrent %s: %v",
+				v.Name(),
+				err,
+			)
+		}
+	}
+
 	return c, nil
 }
 
@@ -193,13 +215,15 @@ func main() {
 	DownloadDir := flag.String("DownloadDir", os.TempDir(), "Directory where downloaded files are stored")
 	Port := flag.Int("Port", defaultHTTPPort, "HTTP Server port")
 	Readahead := flag.Int64("Readahead", defaultReadahead, "Bytes ahead of read to prioritize")
+	ResumeTorrents := flag.Bool("ResumeTorrents", true, "Resume previous torrents on startup")
 	flag.Parse()
 
 	config := ClientConfig{
-		DisableUTP:  *DisableUTP,
-		DownloadDir: *DownloadDir,
-		Port:        *Port,
-		Readahead:   *Readahead,
+		DisableUTP:     *DisableUTP,
+		DownloadDir:    *DownloadDir,
+		Port:           *Port,
+		Readahead:      *Readahead,
+		ResumeTorrents: *ResumeTorrents,
 	}
 
 	ctx := context.Background()
