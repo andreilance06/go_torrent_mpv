@@ -142,6 +142,18 @@ func isMatched(pattern, input string) bool {
 	return matched
 }
 
+func gracefulShutdown(server *http.Server) error {
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+
+	if err := server.Shutdown(ctx); err != nil {
+		return fmt.Errorf("error during server shutdown: %w", err)
+	}
+
+	log.Println("Server shutdown completed")
+	return nil
+}
+
 func run(ctx context.Context, config *ClientConfig) error {
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt)
 	defer cancel()
@@ -163,6 +175,9 @@ func run(ctx context.Context, config *ClientConfig) error {
 	select {
 	case <-ctx.Done():
 		log.Println("Shutdown initiated")
+		if err := gracefulShutdown(server); err != nil {
+			return err
+		}
 	case err := <-serverErr:
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			return fmt.Errorf("server error: %s", err)
