@@ -150,7 +150,7 @@ func gracefulShutdown(server *http.Server) error {
 		return fmt.Errorf("error during server shutdown: %w", err)
 	}
 
-	log.Println("Server shutdown completed")
+	log.Print("Server shutdown completed")
 	return nil
 }
 
@@ -172,9 +172,10 @@ func run(ctx context.Context, config *ClientConfig) error {
 		serverErr <- server.ListenAndServe()
 	}()
 
+	log.Printf("Listening on %s...", server.Addr)
 	select {
 	case <-ctx.Done():
-		log.Println("Shutdown initiated")
+		log.Print("Shutdown initiated")
 		if err := gracefulShutdown(server); err != nil {
 			return err
 		}
