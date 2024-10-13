@@ -75,7 +75,7 @@ func InitClient(userConfig *ClientConfig) (*torrent.Client, error) {
 	}
 
 	files, err := os.ReadDir(filepath.Join(userConfig.DownloadDir, "torrents"))
-	if err != nil && os.IsNotExist(err) {
+	if err != nil && !os.IsNotExist(err) {
 		log.Printf("failed to retrieve saved torrents: %v", err)
 	}
 
