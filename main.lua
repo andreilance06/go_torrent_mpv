@@ -8,7 +8,7 @@ local TORRENT_PATTERNS = { "%.torrent$", "^magnet:%?xt=urn:btih:", "^http[s]?://
 local EXCLUDE_PATTERNS = { "127%.0%.0%.1", "192%.168%.%d+%.%d+", "/torrents/" }
 
 local opts = {
-  DisableUTP = false,
+  DisableUTP = true,
   DownloadDir = os.getenv("tmp"),
   Port = 6969,
   Readahead = 32 * 1024 * 1024,
