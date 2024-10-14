@@ -37,7 +37,20 @@ func HandlePostTorrents(c *torrent.Client, config *ClientConfig) http.Handler {
 			return
 		}
 
-		err = os.MkdirAll(filepath.Join(config.DownloadDir, "torrents"), 0777)
+		playlist, err := BuildPlaylist(t, config)
+		if err != nil {
+			log.Printf("%s error: %v", r.URL.Path, err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		fmt.Fprint(w, playlist)
+
+		if !config.ResumeTorrents {
+			return
+		}
+
+		err = os.MkdirAll(filepath.Join(config.DownloadDir, "torrents"), 0o777)
 		if err != nil {
 			log.Printf("%s error: %v", r.URL.Path, err)
 		}
@@ -55,14 +68,6 @@ func HandlePostTorrents(c *torrent.Client, config *ClientConfig) http.Handler {
 			log.Printf("%s error: %v", r.URL.Path, err)
 		}
 
-		playlist, err := BuildPlaylist(t, config)
-		if err != nil {
-			log.Printf("%s error: %v", r.URL.Path, err)
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		fmt.Fprint(w, playlist)
 	})
 }
 
