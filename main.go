@@ -62,8 +62,12 @@ func GetLocalIPs() ([]net.IP, error) {
 
 func InitClient(userConfig *ClientConfig) (*torrent.Client, error) {
 	config := torrent.NewDefaultClientConfig()
-	config.DefaultStorage = storage.NewBoltDB(userConfig.DownloadDir)
+	config.AlwaysWantConns = true
+	db := storage.NewBoltDB(userConfig.DownloadDir)
+	config.DefaultStorage = db
+	config.DialRateLimiter = rate.NewLimiter(rate.Inf, 0)
 	config.DisableUTP = userConfig.DisableUTP
+	config.EstablishedConnsPerTorrent = 100
 	config.Seed = true
 
 	c, err := torrent.NewClient(config)
