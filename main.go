@@ -47,7 +47,7 @@ func GetLocalIPs() ([]net.IP, error) {
 	var ips []net.IP
 	addresses, err := net.InterfaceAddrs()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get local interface addresses: %w", err)
+		return nil, fmt.Errorf("error getting local interface addresses: %w", err)
 	}
 
 	for _, addr := range addresses {
@@ -83,14 +83,14 @@ func InitClient(userConfig *ClientConfig) (*torrent.Client, storage.ClientImplCl
 
 	files, err := os.ReadDir(filepath.Join(userConfig.DownloadDir, "torrents"))
 	if err != nil && !os.IsNotExist(err) {
-		log.Printf("failed to retrieve saved torrents: %v", err)
+		log.Printf("error retrieving saved torrents: %v", err)
 	}
 
 	for _, v := range files {
 		_, err := AddTorrent(c, filepath.Join(userConfig.DownloadDir, "torrents", v.Name()))
 		if err != nil {
 			log.Printf(
-				"failed to resume torrent %s: %v",
+				"error resuming torrent %s: %v",
 				v.Name(),
 				err,
 			)
@@ -146,13 +146,13 @@ func AddTorrent(c *torrent.Client, id string) (*torrent.Torrent, error) {
 	case isMatched(httpPattern, id):
 		resp, err := http.Get(id)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get torrent from URL: %w", err)
+			return nil, fmt.Errorf("error getting torrent from URL: %w", err)
 		}
 		defer resp.Body.Close()
 
 		metaInfo, err := metainfo.Load(resp.Body)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load torrent metadata: %w", err)
+			return nil, fmt.Errorf("error loading torrent metadata: %w", err)
 		}
 
 		return c.AddTorrent(metaInfo)
@@ -208,7 +208,7 @@ func gracefulShutdown(server *http.Server) error {
 
 	log.Print("Server shutdown successfully")
 	return nil
-	}
+}
 
 func deleteDatabase(config *ClientConfig, db storage.ClientImplCloser) error {
 	if err := db.Close(); err != nil {
@@ -230,6 +230,8 @@ func run(ctx context.Context, config *ClientConfig) error {
 	if err != nil {
 		return err
 	}
+	log.Print("Torrent client started")
+
 	defer func() {
 		c.Close()
 		<-c.Closed()
@@ -246,8 +248,8 @@ func run(ctx context.Context, config *ClientConfig) error {
 
 	<-ctx.Done()
 	log.Print("Shutdown signal received")
-		if err := gracefulShutdown(server); err != nil {
-			return err
+	if err := gracefulShutdown(server); err != nil {
+		return err
 	}
 
 	return nil

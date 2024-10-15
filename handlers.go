@@ -20,7 +20,7 @@ func HandleGetTorrents(c *torrent.Client, config *ClientConfig) http.Handler {
 		for _, t := range c.Torrents() {
 			select {
 			case <-t.GotInfo():
-			torrents[t.InfoHash().String()] = t.Name()
+				torrents[t.InfoHash().String()] = t.Name()
 			case <-r.Context().Done():
 				http.Error(w, "Request canceled", http.StatusRequestTimeout)
 				return
@@ -45,15 +45,15 @@ func HandlePostTorrents(c *torrent.Client, config *ClientConfig) http.Handler {
 
 		t, err := AddTorrent(c, string(body))
 		if err != nil {
-			log.Printf("%s error: %v", r.URL.Path, err)
-			w.WriteHeader(http.StatusBadRequest)
+			log.Printf("error adding torrent: %v", err)
+			http.Error(w, fmt.Sprintf("Error adding torrent: %v", err), http.StatusBadRequest)
 			return
 		}
 
 		playlist, err := BuildPlaylist(t, config)
 		if err != nil {
-			log.Printf("%s error: %v", r.URL.Path, err)
-			w.WriteHeader(http.StatusBadRequest)
+			log.Printf("error building playlist: %v", err)
+			http.Error(w, fmt.Sprintf("Error building playlist: %v", err), http.StatusInternalServerError)
 			return
 		}
 
@@ -75,15 +75,16 @@ func HandleGetInfoHash(c *torrent.Client, config *ClientConfig) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ih := infohash.FromHexString(r.PathValue("infohash"))
 		t, ok := c.Torrent(ih)
+
 		if !ok {
-			w.WriteHeader(http.StatusNotFound)
+			http.Error(w, "Torrent not found", http.StatusNotFound)
 			return
 		}
 
 		playlist, err := BuildPlaylist(t, config)
 		if err != nil {
-			log.Printf("%s error: %v", r.URL.Path, err)
-			w.WriteHeader(http.StatusBadRequest)
+			log.Printf("error building playlist: %v", err)
+			http.Error(w, fmt.Sprintf("Error building playlist %v", err), http.StatusInternalServerError)
 			return
 		}
 
@@ -97,11 +98,12 @@ func HandleDeleteInfoHash(c *torrent.Client, config *ClientConfig) http.Handler 
 		ih := infohash.FromHexString(r.PathValue("infohash"))
 		t, ok := c.Torrent(ih)
 		if !ok {
-			w.WriteHeader(http.StatusNotFound)
+			http.Error(w, "Torrent not found", http.StatusNotFound)
 			return
 		}
 
 		t.Drop()
+		w.WriteHeader(http.StatusNoContent)
 	})
 }
 
@@ -112,7 +114,7 @@ func HandleGetInfoHashFile(c *torrent.Client, config *ClientConfig) http.Handler
 
 		t, ok := c.Torrent(ih)
 		if !ok {
-			w.WriteHeader(http.StatusNotFound)
+			http.Error(w, "Torrent not found", http.StatusNotFound)
 			return
 		}
 
@@ -123,11 +125,12 @@ func HandleGetInfoHashFile(c *torrent.Client, config *ClientConfig) http.Handler
 
 				reader.SetResponsive()
 				reader.SetReadahead(config.Readahead)
-				http.ServeContent(w, r, filepath.Base(file.DisplayPath()), time.Unix(t.Metainfo().CreationDate, 0), reader)
-				break
+				http.ServeContent(w, r, filepath.Base(query), time.Unix(t.Metainfo().CreationDate, 0), reader)
+				return
 			}
 		}
 
+		http.Error(w, "File not found", http.StatusNotFound)
 	})
 }
 

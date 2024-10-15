@@ -4,7 +4,10 @@ go 1.23
 
 toolchain go1.23.1
 
-require github.com/anacrolix/torrent v1.57.0
+require (
+	github.com/anacrolix/torrent v1.57.0
+	golang.org/x/time v0.0.0-20220609170525-579cf78fd858
+)
 
 require (
 	github.com/RoaringBitmap/roaring v1.2.3 // indirect
@@ -15,7 +18,7 @@ require (
 	github.com/anacrolix/envpprof v1.3.0 // indirect
 	github.com/anacrolix/generics v0.0.2 // indirect
 	github.com/anacrolix/go-libutp v1.3.1 // indirect
-	github.com/anacrolix/log v0.15.3-0.20240627045001-cd912c641d83 // indirect
+	github.com/anacrolix/log v0.16.0 // indirect
 	github.com/anacrolix/missinggo v1.3.0 // indirect
 	github.com/anacrolix/missinggo/perf v1.0.0 // indirect
 	github.com/anacrolix/missinggo/v2 v2.7.3 // indirect
@@ -80,7 +83,6 @@ require (
 	golang.org/x/net v0.23.0 // indirect
 	golang.org/x/sync v0.7.0 // indirect
 	golang.org/x/sys v0.18.0 // indirect
-	golang.org/x/time v0.0.0-20220609170525-579cf78fd858 // indirect
 	lukechampine.com/blake3 v1.1.6 // indirect
 	modernc.org/libc v1.22.3 // indirect
 	modernc.org/mathutil v1.5.0 // indirect
