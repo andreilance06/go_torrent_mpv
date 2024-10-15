@@ -21,6 +21,7 @@ import (
 	"github.com/anacrolix/torrent/metainfo"
 	"github.com/anacrolix/torrent/storage"
 	"github.com/anacrolix/torrent/types/infohash"
+	"golang.org/x/time/rate"
 )
 
 type ClientConfig struct {
