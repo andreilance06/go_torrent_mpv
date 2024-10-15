@@ -11,6 +11,7 @@ local opts = {
   DeleteTorrentFilesOnExit = false,
   DisableUTP = true,
   DownloadDir = os.getenv("tmp"),
+  MaxConnsPerTorrent = 100,
   Port = 6969,
   Readahead = 32 * 1024 * 1024,
   ResumeTorrents = true

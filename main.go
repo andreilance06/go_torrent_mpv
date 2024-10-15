@@ -28,6 +28,7 @@ type ClientConfig struct {
 	DeleteTorrentFilesOnExit bool
 	DisableUTP               bool
 	DownloadDir              string
+	MaxConnsPerTorrent       int
 	Port                     int
 	Readahead                int64
 	ResumeTorrents           bool
@@ -69,7 +70,7 @@ func InitClient(userConfig *ClientConfig) (*torrent.Client, storage.ClientImplCl
 	config.DefaultStorage = db
 	config.DialRateLimiter = rate.NewLimiter(rate.Inf, 0)
 	config.DisableUTP = userConfig.DisableUTP
-	config.EstablishedConnsPerTorrent = 100
+	config.EstablishedConnsPerTorrent = userConfig.MaxConnsPerTorrent
 	config.Seed = true
 
 	c, err := torrent.NewClient(config)
@@ -259,6 +260,7 @@ func main() {
 	DeleteTorrentFilesOnExit := flag.Bool("DeleteTorrentFilesOnExit", false, "Delete downloaded files before exiting")
 	DisableUTP := flag.Bool("DisableUTP", true, "Disables UTP")
 	DownloadDir := flag.String("DownloadDir", os.TempDir(), "Directory where downloaded files are stored")
+	MaxConnsPerTorrent := flag.Int("MaxConnsPerTorrent", 100, "Maximum connections per torrent")
 	Port := flag.Int("Port", defaultHTTPPort, "HTTP Server port")
 	Readahead := flag.Int64("Readahead", defaultReadahead, "Bytes ahead of read to prioritize")
 	ResumeTorrents := flag.Bool("ResumeTorrents", true, "Resume previous torrents on startup")
@@ -268,6 +270,7 @@ func main() {
 		DeleteTorrentFilesOnExit: *DeleteTorrentFilesOnExit,
 		DisableUTP:               *DisableUTP,
 		DownloadDir:              *DownloadDir,
+		MaxConnsPerTorrent:       *MaxConnsPerTorrent,
 		Port:                     *Port,
 		Readahead:                *Readahead,
 		ResumeTorrents:           *ResumeTorrents,
