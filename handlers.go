@@ -29,8 +29,13 @@ func HandleGetTorrents(c *torrent.Client, config *ClientConfig) http.Handler {
 
 func HandlePostTorrents(c *torrent.Client, config *ClientConfig) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		reader := io.Reader(r.Body)
-		body, _ := io.ReadAll(reader)
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			log.Printf("error reading request body: %v", err)
+			http.Error(w, "Bad request", http.StatusBadRequest)
+			return
+		}
+
 		t, err := AddTorrent(c, string(body))
 		if err != nil {
 			log.Printf("%s error: %v", r.URL.Path, err)
