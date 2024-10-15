@@ -45,6 +45,7 @@ func HandlePostTorrents(c *torrent.Client, config *ClientConfig) http.Handler {
 			return
 		}
 
+		w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
 		fmt.Fprint(w, playlist)
 
 		if !config.ResumeTorrents {
@@ -74,6 +75,7 @@ func HandleGetInfoHash(c *torrent.Client, config *ClientConfig) http.Handler {
 			return
 		}
 
+		w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
 		fmt.Fprint(w, playlist)
 	})
 }
