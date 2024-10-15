@@ -18,11 +18,19 @@ func HandleGetTorrents(c *torrent.Client, config *ClientConfig) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		torrents := make(map[string]string)
 		for _, t := range c.Torrents() {
-			<-t.GotInfo()
+			select {
+			case <-t.GotInfo():
 			torrents[t.InfoHash().String()] = t.Name()
+			case <-r.Context().Done():
+				http.Error(w, "Request canceled", http.StatusRequestTimeout)
+				return
+			}
 		}
-		parsed, _ := json.Marshal(torrents)
-		fmt.Fprint(w, string(parsed))
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(torrents); err != nil {
+			log.Printf("error encoding JSON response: %v", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+		}
 	})
 }
 
