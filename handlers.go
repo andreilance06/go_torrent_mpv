@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -115,9 +116,10 @@ func HandleGetInfoHashFile(c *torrent.Client, config *ClientConfig) http.Handler
 	})
 }
 
-func HandleExit(server *http.Server) http.Handler {
+func HandleExit(cancel context.CancelFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Print("Received shutdown request")
-		go gracefulShutdown(server)
+		w.WriteHeader(http.StatusAccepted)
+		fmt.Fprint(w, "Shutdown initiated")
+		cancel()
 	})
 }

@@ -100,13 +100,20 @@ func InitClient(userConfig *ClientConfig) (*torrent.Client, storage.ClientImplCl
 	return c, db, nil
 }
 
-func InitServer(c *torrent.Client, config *ClientConfig) *http.Server {
+func InitServer(c *torrent.Client, config *ClientConfig, cancel context.CancelFunc) *http.Server {
 	mux := http.NewServeMux()
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%d", config.Port),
 		Handler: mux,
 	}
-	AddRoutes(mux, c, server, config)
+	AddRoutes(mux, c, config, cancel)
+	go func() {
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Printf("error on server ListenAndServe: %v", err)
+		}
+		cancel()
+	}()
+
 	return server
 }
 
@@ -216,6 +223,8 @@ func deleteDatabase(config *ClientConfig, db storage.ClientImplCloser) error {
 func run(ctx context.Context, config *ClientConfig) error {
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer cancel()
+	ctx, cancel = context.WithCancel(ctx)
+	defer cancel()
 
 	c, db, err := InitClient(config)
 	if err != nil {
@@ -232,25 +241,13 @@ func run(ctx context.Context, config *ClientConfig) error {
 		}
 	}()
 
-	server := InitServer(c, config)
-	serverErr := make(chan error, 1)
-	defer close(serverErr)
-
-	go func() {
-		serverErr <- server.ListenAndServe()
-	}()
-
+	server := InitServer(c, config, cancel)
 	log.Printf("Listening on %s...", server.Addr)
-	select {
-	case <-ctx.Done():
-		log.Print("Shutdown initiated")
+
+	<-ctx.Done()
+	log.Print("Shutdown signal received")
 		if err := gracefulShutdown(server); err != nil {
 			return err
-		}
-	case err := <-serverErr:
-		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			return fmt.Errorf("server error: %s", err)
-		}
 	}
 
 	return nil
