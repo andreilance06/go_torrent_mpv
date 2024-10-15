@@ -25,11 +25,12 @@ import (
 )
 
 type ClientConfig struct {
-	DisableUTP     bool
-	DownloadDir    string
-	Port           int
-	Readahead      int64
-	ResumeTorrents bool
+	DeleteTorrentFilesOnExit bool
+	DisableUTP               bool
+	DownloadDir              string
+	Port                     int
+	Readahead                int64
+	ResumeTorrents           bool
 }
 
 const (
@@ -61,7 +62,7 @@ func GetLocalIPs() ([]net.IP, error) {
 	return ips, nil
 }
 
-func InitClient(userConfig *ClientConfig) (*torrent.Client, error) {
+func InitClient(userConfig *ClientConfig) (*torrent.Client, storage.ClientImplCloser, error) {
 	config := torrent.NewDefaultClientConfig()
 	config.AlwaysWantConns = true
 	db := storage.NewBoltDB(userConfig.DownloadDir)
@@ -73,11 +74,11 @@ func InitClient(userConfig *ClientConfig) (*torrent.Client, error) {
 
 	c, err := torrent.NewClient(config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize torrent client: %w", err)
+		return nil, nil, fmt.Errorf("error initializing torrent client: %w", err)
 	}
 
 	if !userConfig.ResumeTorrents {
-		return c, nil
+		return c, db, nil
 	}
 
 	files, err := os.ReadDir(filepath.Join(userConfig.DownloadDir, "torrents"))
@@ -96,7 +97,7 @@ func InitClient(userConfig *ClientConfig) (*torrent.Client, error) {
 		}
 	}
 
-	return c, nil
+	return c, db, nil
 }
 
 func InitServer(c *torrent.Client, config *ClientConfig) *http.Server {
@@ -195,10 +196,20 @@ func gracefulShutdown(server *http.Server) error {
 	defer cancel()
 
 	if err := server.Shutdown(ctx); err != nil {
-		return fmt.Errorf("error during server shutdown: %w", err)
+		return fmt.Errorf("error shutting down server: %w", err)
 	}
 
-	log.Print("Server shutdown completed")
+	log.Print("Server shutdown successfully")
+	return nil
+	}
+
+func deleteDatabase(config *ClientConfig, db storage.ClientImplCloser) error {
+	if err := db.Close(); err != nil {
+		return fmt.Errorf("error closing database: %w", err)
+	}
+	if err := os.Remove(filepath.Join(config.DownloadDir, "bolt.db")); err != nil {
+		return fmt.Errorf("error deleting database: %w", err)
+	}
 	return nil
 }
 
@@ -206,11 +217,20 @@ func run(ctx context.Context, config *ClientConfig) error {
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	c, err := InitClient(config)
+	c, db, err := InitClient(config)
 	if err != nil {
 		return err
 	}
-	defer c.Close()
+	defer func() {
+		c.Close()
+		<-c.Closed()
+		log.Print("Torrent client shutdown successfully")
+		if config.DeleteTorrentFilesOnExit {
+			if err := deleteDatabase(config, db); err != nil {
+				log.Print(err)
+			}
+		}
+	}()
 
 	server := InitServer(c, config)
 	serverErr := make(chan error, 1)
@@ -237,6 +257,7 @@ func run(ctx context.Context, config *ClientConfig) error {
 }
 
 func main() {
+	DeleteTorrentFilesOnExit := flag.Bool("DeleteTorrentFilesOnExit", false, "Delete downloaded files before exiting")
 	DisableUTP := flag.Bool("DisableUTP", true, "Disables UTP")
 	DownloadDir := flag.String("DownloadDir", os.TempDir(), "Directory where downloaded files are stored")
 	Port := flag.Int("Port", defaultHTTPPort, "HTTP Server port")
@@ -245,11 +266,12 @@ func main() {
 	flag.Parse()
 
 	config := ClientConfig{
-		DisableUTP:     *DisableUTP,
-		DownloadDir:    *DownloadDir,
-		Port:           *Port,
-		Readahead:      *Readahead,
-		ResumeTorrents: *ResumeTorrents,
+		DeleteTorrentFilesOnExit: *DeleteTorrentFilesOnExit,
+		DisableUTP:               *DisableUTP,
+		DownloadDir:              *DownloadDir,
+		Port:                     *Port,
+		Readahead:                *Readahead,
+		ResumeTorrents:           *ResumeTorrents,
 	}
 
 	ctx := context.Background()
