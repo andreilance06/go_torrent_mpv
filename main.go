@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/anacrolix/torrent"
@@ -177,7 +178,7 @@ func gracefulShutdown(server *http.Server) error {
 }
 
 func run(ctx context.Context, config *ClientConfig) error {
-	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt)
+	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
 	c, err := InitClient(config)
