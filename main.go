@@ -170,6 +170,26 @@ func isMatched(pattern, input string) bool {
 	return matched
 }
 
+func saveTorrentFile(config *ClientConfig, t *torrent.Torrent) error {
+	err := os.MkdirAll(filepath.Join(config.DownloadDir, "torrents"), 0o777)
+	if err != nil {
+		return fmt.Errorf("error creating torrents directory: %w", err)
+	}
+
+	f, err := os.Create(filepath.Join(config.DownloadDir, "torrents", fmt.Sprintf("%s.torrent", t.Name())))
+	if err != nil {
+		return fmt.Errorf("error creating torrent file: %w", err)
+	}
+	defer f.Close()
+
+	infoBytes := t.Metainfo()
+	if err := infoBytes.Write(f); err != nil {
+		return fmt.Errorf("error writing torrent file: %w", err)
+	}
+
+	return nil
+}
+
 func gracefulShutdown(server *http.Server) error {
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
