@@ -118,6 +118,10 @@ func InitServer(c *torrent.Client, config *ClientConfig, cancel context.CancelFu
 	return server
 }
 
+func BuildUrl(f *torrent.File, localIP net.IP, Port int) string {
+	return fmt.Sprintf("http://%s:%d/torrents/%s/%s", localIP, Port, f.Torrent().InfoHash(), f.DisplayPath())
+}
+
 func BuildPlaylist(t *torrent.Torrent, config *ClientConfig) (string, error) {
 	<-t.GotInfo()
 
@@ -133,7 +137,7 @@ func BuildPlaylist(t *torrent.Torrent, config *ClientConfig) (string, error) {
 		ext := mime.TypeByExtension(filepath.Ext(file.DisplayPath()))
 		if strings.HasPrefix(ext, "video") {
 			playlist = append(playlist, fmt.Sprintf("#EXTINF:0,%s", filepath.Base(file.DisplayPath())))
-			playlist = append(playlist, fmt.Sprintf("http://%s:%d/torrents/%s/%s", localIP, config.Port, t.InfoHash(), file.DisplayPath()))
+			playlist = append(playlist, BuildUrl(file, localIP, config.Port))
 		}
 	}
 
