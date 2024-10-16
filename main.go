@@ -107,7 +107,7 @@ func InitServer(c *torrent.Client, config *ClientConfig, cancel context.CancelFu
 		Addr:    fmt.Sprintf(":%d", config.Port),
 		Handler: mux,
 	}
-	AddRoutes(mux, c, config, cancel)
+	RegisterRoutes(mux, c, config, cancel)
 	go func() {
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Printf("error on server ListenAndServe: %v", err)

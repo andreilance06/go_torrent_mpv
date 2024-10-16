@@ -7,7 +7,7 @@ import (
 	"github.com/anacrolix/torrent"
 )
 
-func AddRoutes(mux *http.ServeMux, c *torrent.Client, config *ClientConfig, cancel context.CancelFunc) {
+func RegisterRoutes(mux *http.ServeMux, c *torrent.Client, config *ClientConfig, cancel context.CancelFunc) {
 	mux.Handle("GET /torrents", HandleGetTorrents(c, config))
 	mux.Handle("POST /torrents", HandlePostTorrents(c, config))
 	mux.Handle("GET /torrents/{infohash}", HandleGetInfoHash(c, config))
