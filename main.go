@@ -234,8 +234,11 @@ func run(ctx context.Context, config *ClientConfig) error {
 	log.Print("Torrent client started")
 
 	defer func() {
-		c.Close()
+		errs := c.Close()
 		<-c.Closed()
+		for _, err := range errs {
+			log.Printf("error shutting down client: %v", err)
+		}
 		log.Print("Torrent client shutdown successfully")
 		if config.DeleteTorrentFilesOnExit {
 			if err := deleteDatabase(config, db); err != nil {
