@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -34,6 +35,18 @@ type ClientConfig struct {
 	ResumeTorrents           bool
 }
 
+type TorrentInfo struct {
+	Name     string
+	Infohash string
+	Files    []FileInfo
+}
+
+type FileInfo struct {
+	Name   string
+	URL    string
+	Length int64
+}
+
 const (
 	torrentPattern   = "\\.torrent$"
 	infoHashPattern  = "^[0-9a-fA-F]{40}$"
@@ -61,6 +74,48 @@ func GetLocalIPs() ([]net.IP, error) {
 		}
 	}
 	return ips, nil
+}
+
+func MarshalTorrents(c *torrent.Client, config *ClientConfig) ([]byte, error) {
+	torrents := make(map[string]TorrentInfo, len(c.Torrents()))
+
+	for _, t := range c.Torrents() {
+		<-t.GotInfo()
+
+		torrentInfo, err := WrapTorrent(t, config)
+		if err != nil {
+			return nil, err
+		}
+		torrents[t.InfoHash().String()] = torrentInfo
+
+	}
+
+	return json.Marshal(torrents)
+}
+
+func WrapTorrent(t *torrent.Torrent, config *ClientConfig) (TorrentInfo, error) {
+	<-t.GotInfo()
+	ips, err := GetLocalIPs()
+	if err != nil {
+		return TorrentInfo{}, err
+	}
+
+	localIP := ips[0]
+	files := make([]FileInfo, 0, len(t.Files()))
+
+	for _, f := range t.Files() {
+		files = append(files, FileInfo{
+			Name:   filepath.Base(f.DisplayPath()),
+			URL:    BuildUrl(f, localIP, config.Port),
+			Length: f.Length(),
+		})
+	}
+
+	return TorrentInfo{
+		Name:     t.Name(),
+		Infohash: t.InfoHash().String(),
+		Files:    files,
+	}, nil
 }
 
 func InitClient(userConfig *ClientConfig) (*torrent.Client, storage.ClientImplCloser, error) {
