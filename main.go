@@ -22,6 +22,7 @@ import (
 	"github.com/anacrolix/torrent/metainfo"
 	"github.com/anacrolix/torrent/storage"
 	"github.com/anacrolix/torrent/types/infohash"
+	"golang.org/x/sys/windows"
 	"golang.org/x/time/rate"
 )
 
@@ -336,6 +337,16 @@ func main() {
 		Port:                     *Port,
 		Readahead:                *Readahead,
 		ResumeTorrents:           *ResumeTorrents,
+	}
+
+	_, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/torrents", config.Port))
+
+	if err == nil {
+		log.Fatalf("server already listening on port %d", config.Port)
+	}
+
+	if err != nil && !errors.Is(err, windows.WSAECONNREFUSED) {
+		log.Fatalf("error checking if server already exists: %v", err)
 	}
 
 	ctx := context.Background()
