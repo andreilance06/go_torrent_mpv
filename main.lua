@@ -14,14 +14,19 @@ local opts = {
   MaxConnsPerTorrent = 100,
   Port = 6969,
   Readahead = 32 * 1024 * 1024,
-  ResumeTorrents = true
+  ResumeTorrents = true,
+  closeClientOnMpvExit = true,
+  closeClientOnNoTorrentFiles = false -- close torrent client when there are no files from torrents in mpv's playlist
 }
 options.read_options(opts)
 
 local function load_options()
   local t = {}
   for i, v in pairs(opts) do
-    t[#t + 1] = '--' .. i .. '=' .. tostring(v)
+    local first_char = i:sub(1, 1)
+    if string.upper(first_char) == first_char then
+      t[#t + 1] = '--' .. i .. '=' .. tostring(v)
+    end
   end
   return t
 end
@@ -55,6 +60,7 @@ local function close_torrent_client()
     mp.command_native({
       name = 'subprocess',
       playback_only = false,
+      capture_stdout = true,
       args = { 'curl', 'localhost:' .. opts.Port .. '/exit' },
       detach = true
     })
@@ -166,11 +172,14 @@ local function on_load(hook)
   end
   msg.debug('Unable to load', path)
 
-  if next(torrents) == nil then
+  if next(torrents) == nil and opts.closeClientOnNoTorrentFiles then
     close_torrent_client()
   end
 end
 
 mp.add_hook('on_load', 50, on_load)
-mp.register_event('shutdown', close_torrent_client)
 mp.observe_property('playlist', 'native', playlist_changed)
+if opts.closeClientOnMpvExit then
+  mp.register_event('shutdown', close_torrent_client)
+end
+start_torrent_client()
