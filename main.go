@@ -128,7 +128,7 @@ func InitStorage(config *ClientConfig) (storage.ClientImplCloser, error) {
 	dbOpts := squirrel.NewCacheOpts{}
 	dbOpts.SetAutoVacuum = generics.Some("full")
 	dbOpts.SetJournalMode = "wal"
-	dbOpts.SetSynchronous = 1
+	dbOpts.SetSynchronous = 0
 	dbOpts.Path = filepath.Join(config.DownloadDir, "torrents.db")
 	dbOpts.Capacity = -1
 	dbOpts.MmapSizeOk = true
