@@ -42,7 +42,7 @@ type ClientConfig struct {
 
 type TorrentInfo struct {
 	Name     string
-	Infohash string
+	InfoHash string
 	Files    []FileInfo
 }
 
@@ -54,12 +54,13 @@ type FileInfo struct {
 
 const (
 	torrentPattern   = "\\.torrent$"
-	infoHashPattern  = "^[0-9a-fA-F]{40}$"
 	magnetPattern    = "^magnet:"
+	infoHashPattern  = "^[0-9a-fA-F]{40}$"
 	httpPattern      = "^https?"
-	shutdownTimeout  = 9 * time.Second
-	defaultReadahead = 32 * 1024 * 1024 // 32 MB
 	defaultHTTPPort  = 6969
+	defaultMaxConns  = 200
+	defaultReadahead = 32 * 1024 * 1024 // 32 MB
+	shutdownTimeout  = 9 * time.Second
 )
 
 func GetLocalIPs() ([]net.IP, error) {
@@ -118,7 +119,7 @@ func WrapTorrent(t *torrent.Torrent, config *ClientConfig) (TorrentInfo, error) 
 
 	return TorrentInfo{
 		Name:     t.Name(),
-		Infohash: t.InfoHash().String(),
+		InfoHash: t.InfoHash().String(),
 		Files:    files,
 	}, nil
 }
@@ -350,7 +351,7 @@ func main() {
 	DeleteTorrentFilesOnExit := flag.Bool("DeleteTorrentFilesOnExit", false, "Delete downloaded files before exiting")
 	DisableUTP := flag.Bool("DisableUTP", true, "Disables UTP")
 	DownloadDir := flag.String("DownloadDir", os.TempDir(), "Directory where downloaded files are stored")
-	MaxConnsPerTorrent := flag.Int("MaxConnsPerTorrent", 100, "Maximum connections per torrent")
+	MaxConnsPerTorrent := flag.Int("MaxConnsPerTorrent", defaultMaxConns, "Maximum connections per torrent")
 	Port := flag.Int("Port", defaultHTTPPort, "HTTP Server port")
 	Readahead := flag.Int64("Readahead", defaultReadahead, "Bytes ahead of read to prioritize")
 	ResumeTorrents := flag.Bool("ResumeTorrents", true, "Resume previous torrents on startup")
