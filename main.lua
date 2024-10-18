@@ -15,6 +15,7 @@ local opts = {
   Port = 6969,
   Readahead = 32 * 1024 * 1024,
   ResumeTorrents = true,
+  startClientOnMpvLaunch = true,
   closeClientOnMpvExit = true,
   closeClientOnNoTorrentFiles = false -- close torrent client when there are no files from torrents in mpv's playlist
 }
@@ -182,4 +183,6 @@ mp.observe_property('playlist', 'native', playlist_changed)
 if opts.closeClientOnMpvExit then
   mp.register_event('shutdown', close_torrent_client)
 end
-start_torrent_client()
+if opts.startClientOnMpvLaunch then
+  start_torrent_client()
+end
