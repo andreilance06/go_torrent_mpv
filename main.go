@@ -18,9 +18,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/anacrolix/generics"
+	"github.com/anacrolix/squirrel"
 	"github.com/anacrolix/torrent"
 	"github.com/anacrolix/torrent/metainfo"
 	"github.com/anacrolix/torrent/storage"
+	sqliteStorage "github.com/anacrolix/torrent/storage/sqlite"
 	"github.com/anacrolix/torrent/types/infohash"
 	"golang.org/x/sys/windows"
 	"golang.org/x/time/rate"
@@ -119,10 +122,24 @@ func WrapTorrent(t *torrent.Torrent, config *ClientConfig) (TorrentInfo, error) 
 	}, nil
 }
 
-func InitClient(userConfig *ClientConfig) (*torrent.Client, storage.ClientImplCloser, error) {
+func InitStorage(config *ClientConfig) (storage.ClientImplCloser, error) {
+	dbOpts := squirrel.NewCacheOpts{}
+	dbOpts.SetAutoVacuum = generics.Some("full")
+	dbOpts.SetJournalMode = "wal"
+	dbOpts.SetSynchronous = 1
+	dbOpts.Path = filepath.Join(config.DownloadDir, "torrents.db")
+	dbOpts.Capacity = -1
+	dbOpts.MmapSizeOk = true
+	dbOpts.MmapSize = 64 << 20
+	dbOpts.CacheSize = generics.Some[int64](-32 << 20)
+	dbOpts.SetLockingMode = "normal"
+	dbOpts.JournalSizeLimit.Set(1 << 30)
+	return sqliteStorage.NewDirectStorage(dbOpts)
+}
+
+func InitClient(userConfig *ClientConfig, db storage.ClientImplCloser) (*torrent.Client, error) {
 	config := torrent.NewDefaultClientConfig()
 	config.AlwaysWantConns = true
-	db := storage.NewBoltDB(userConfig.DownloadDir)
 	config.DefaultStorage = db
 	config.DialRateLimiter = rate.NewLimiter(rate.Inf, 0)
 	config.DisableUTP = userConfig.DisableUTP
@@ -131,11 +148,11 @@ func InitClient(userConfig *ClientConfig) (*torrent.Client, storage.ClientImplCl
 
 	c, err := torrent.NewClient(config)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error initializing torrent client: %w", err)
+		return nil, fmt.Errorf("error initializing torrent client: %w", err)
 	}
 
 	if !userConfig.ResumeTorrents {
-		return c, db, nil
+		return c, nil
 	}
 
 	files, err := os.ReadDir(filepath.Join(userConfig.DownloadDir, "torrents"))
@@ -154,7 +171,7 @@ func InitClient(userConfig *ClientConfig) (*torrent.Client, storage.ClientImplCl
 		}
 	}
 
-	return c, db, nil
+	return c, nil
 }
 
 func InitServer(c *torrent.Client, config *ClientConfig, cancel context.CancelFunc) *http.Server {
@@ -287,7 +304,12 @@ func run(ctx context.Context, config *ClientConfig) error {
 	ctx, cancel = context.WithCancel(ctx)
 	defer cancel()
 
-	c, db, err := InitClient(config)
+	db, err := InitStorage(config)
+	if err != nil {
+		return err
+	}
+
+	c, err := InitClient(config, db)
 	if err != nil {
 		return err
 	}
