@@ -5,6 +5,8 @@ go 1.23
 toolchain go1.23.1
 
 require (
+	github.com/anacrolix/generics v0.0.3-0.20240902042256-7fb2702ef0ca
+	github.com/anacrolix/squirrel v0.6.4
 	github.com/anacrolix/torrent v1.57.2-0.20241017235801-4d8437a05621
 	golang.org/x/sys v0.26.0
 	golang.org/x/time v0.0.0-20220609170525-579cf78fd858
@@ -17,7 +19,6 @@ require (
 	github.com/anacrolix/chansync v0.5.1 // indirect
 	github.com/anacrolix/dht/v2 v2.19.2-0.20221121215055-066ad8494444 // indirect
 	github.com/anacrolix/envpprof v1.3.0 // indirect
-	github.com/anacrolix/generics v0.0.3-0.20240902042256-7fb2702ef0ca // indirect
 	github.com/anacrolix/go-libutp v1.3.1 // indirect
 	github.com/anacrolix/log v0.16.0 // indirect
 	github.com/anacrolix/missinggo v1.3.0 // indirect
@@ -25,7 +26,6 @@ require (
 	github.com/anacrolix/missinggo/v2 v2.7.4 // indirect
 	github.com/anacrolix/mmsg v1.0.0 // indirect
 	github.com/anacrolix/multiless v0.4.0 // indirect
-	github.com/anacrolix/squirrel v0.6.4 // indirect
 	github.com/anacrolix/stm v0.4.0 // indirect
 	github.com/anacrolix/sync v0.5.1 // indirect
 	github.com/anacrolix/upnp v0.1.4 // indirect
