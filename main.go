@@ -14,6 +14,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -198,19 +199,23 @@ func BuildUrl(f *torrent.File, localIP net.IP, Port int) string {
 func BuildPlaylist(t *torrent.Torrent, config *ClientConfig) (string, error) {
 	<-t.GotInfo()
 
-	ips, err := GetLocalIPs()
+	torrentInfo, err := WrapTorrent(t, config)
 	if err != nil {
 		return "", err
 	}
 
-	localIP := ips[0]
 	playlist := []string{"#EXTM3U"}
+	files := torrentInfo.Files
 
-	for _, file := range t.Files() {
-		ext := mime.TypeByExtension(filepath.Ext(file.DisplayPath()))
+	sort.Slice(files, func(i, j int) bool {
+		return files[i].Name < files[j].Name
+	})
+
+	for _, file := range torrentInfo.Files {
+		ext := mime.TypeByExtension(filepath.Ext(file.Name))
 		if strings.HasPrefix(ext, "video") {
-			playlist = append(playlist, fmt.Sprintf("#EXTINF:0,%s", filepath.Base(file.DisplayPath())))
-			playlist = append(playlist, BuildUrl(file, localIP, config.Port))
+			playlist = append(playlist, fmt.Sprintf("#EXTINF:0,%s", filepath.Base(file.Name)))
+			playlist = append(playlist, file.URL)
 		}
 	}
 
