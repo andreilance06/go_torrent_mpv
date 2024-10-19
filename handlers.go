@@ -6,7 +6,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"path/filepath"
 	"time"
 
 	"github.com/anacrolix/torrent"
@@ -122,7 +121,7 @@ func HandleGetInfoHashFile(c *torrent.Client, config *ClientConfig) http.Handler
 
 				reader.SetResponsive()
 				reader.SetReadahead(config.Readahead)
-				http.ServeContent(w, r, filepath.Base(query), time.Unix(t.Metainfo().CreationDate, 0), reader)
+				http.ServeContent(w, r, query, time.Unix(t.Metainfo().CreationDate, 0), reader)
 				return
 			}
 		}
