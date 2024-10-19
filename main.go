@@ -83,7 +83,7 @@ func GetLocalIPs() ([]net.IP, error) {
 }
 
 func MarshalTorrents(c *torrent.Client, config *ClientConfig) ([]byte, error) {
-	torrents := make(map[string]TorrentInfo, len(c.Torrents()))
+	torrents := make([]TorrentInfo, 0, len(c.Torrents()))
 
 	for _, t := range c.Torrents() {
 		<-t.GotInfo()
@@ -92,7 +92,7 @@ func MarshalTorrents(c *torrent.Client, config *ClientConfig) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		torrents[t.InfoHash().String()] = torrentInfo
+		torrents = append(torrents, torrentInfo)
 
 	}
 
