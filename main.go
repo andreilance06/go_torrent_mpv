@@ -117,6 +117,10 @@ func WrapTorrent(t *torrent.Torrent, config *ClientConfig) (TorrentInfo, error) 
 		})
 	}
 
+	sort.Slice(files, func(i, j int) bool {
+		return files[i].Name < files[j].Name
+	})
+
 	return TorrentInfo{
 		Name:     t.Name(),
 		InfoHash: t.InfoHash().String(),
@@ -208,14 +212,10 @@ func BuildPlaylist(t *torrent.Torrent, config *ClientConfig) (string, error) {
 	playlist := []string{"#EXTM3U"}
 	files := torrentInfo.Files
 
-	sort.Slice(files, func(i, j int) bool {
-		return files[i].Name < files[j].Name
-	})
-
-	for _, file := range torrentInfo.Files {
+	for _, file := range files {
 		ext := mime.TypeByExtension(filepath.Ext(file.Name))
 		if strings.HasPrefix(ext, "video") {
-			playlist = append(playlist, fmt.Sprintf("#EXTINF:0,%s", filepath.Base(file.Name)))
+			playlist = append(playlist, fmt.Sprintf("#EXTINF:0,%s", file.Name))
 			playlist = append(playlist, file.URL)
 		}
 	}
