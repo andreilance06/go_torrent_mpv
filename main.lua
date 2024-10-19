@@ -53,7 +53,7 @@ local function start_torrent_client()
       return
     end
 
-    mp.command_native({
+    local res = mp.command_native({
       name = "subprocess",
       playback_only = false,
       capture_stderr = true,
