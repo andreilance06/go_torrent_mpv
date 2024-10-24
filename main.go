@@ -37,6 +37,7 @@ type ClientConfig struct {
 	MaxConnsPerTorrent       int
 	Port                     int
 	Readahead                int64
+	Responsive               bool
 	ResumeTorrents           bool
 }
 
@@ -224,7 +225,7 @@ func BuildPlaylist(t *torrent.Torrent, config *ClientConfig) (string, error) {
 }
 
 func AddTorrent(c *torrent.Client, id string) (*torrent.Torrent, error) {
-	log.Printf("AddTorrent: got %s", id)
+	log.Printf("AddTorrent: %s", id)
 
 	switch {
 	case isMatched(httpPattern, id):
@@ -353,7 +354,8 @@ func main() {
 	DownloadDir := flag.String("DownloadDir", os.TempDir(), "Directory where downloaded files are stored")
 	MaxConnsPerTorrent := flag.Int("MaxConnsPerTorrent", defaultMaxConns, "Maximum connections per torrent")
 	Port := flag.Int("Port", defaultHTTPPort, "HTTP Server port")
-	Readahead := flag.Int64("Readahead", defaultReadahead, "Bytes ahead of read to prioritize")
+	Readahead := flag.Int64("Readahead", defaultReadahead, "Bytes ahead of read to prioritize. Set to a negative value to use the default readahead function.")
+	Responsive := flag.Bool("Responsive", false, "Read calls return as soon as possible without waiting for pieces to be verified.")
 	ResumeTorrents := flag.Bool("ResumeTorrents", true, "Resume previous torrents on startup")
 	flag.Parse()
 
@@ -364,6 +366,7 @@ func main() {
 		MaxConnsPerTorrent:       *MaxConnsPerTorrent,
 		Port:                     *Port,
 		Readahead:                *Readahead,
+		Responsive:               *Responsive,
 		ResumeTorrents:           *ResumeTorrents,
 	}
 

@@ -15,6 +15,7 @@ local opts = {
   MaxConnsPerTorrent = 200,
   Port = 6969,
   Readahead = 32 * 1024 * 1024,
+  Responsive = false,
   ResumeTorrents = true,
   startClientOnMpvLaunch = true,
   closeClientOnMpvExit = true,

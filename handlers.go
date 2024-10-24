@@ -119,8 +119,12 @@ func HandleGetInfoHashFile(c *torrent.Client, config *ClientConfig) http.Handler
 				reader := file.NewReader()
 				defer reader.Close()
 
+				if config.Responsive {
 				reader.SetResponsive()
+				}
+				if config.Readahead >= 0 {
 				reader.SetReadahead(config.Readahead)
+				}
 				http.ServeContent(w, r, query, time.Unix(t.Metainfo().CreationDate, 0), reader)
 				return
 			}
