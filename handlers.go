@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/anacrolix/torrent"
@@ -23,6 +24,7 @@ func HandleGetTorrents(c *torrent.Client, config *ClientConfig) http.Handler {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Length", strconv.Itoa(len(parsed)))
 		if r.Method == http.MethodHead {
 			return
 		}
