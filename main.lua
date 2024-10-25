@@ -19,6 +19,8 @@ local opts = {
   Responsive = false,
   ResumeTorrents = true,
 
+  Profiling = false,
+
   startClientOnMpvLaunch = true,
   closeClientOnMpvExit = true,
   closeClientOnNoTorrentFiles = false, -- close torrent client when there are no files from torrents in mpv's playlist

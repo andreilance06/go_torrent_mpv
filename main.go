@@ -40,6 +40,8 @@ type ClientConfig struct {
 	Readahead               int64
 	Responsive              bool
 	ResumeTorrents          bool
+
+	Profiling bool
 }
 
 type TorrentInfo struct {
@@ -365,6 +367,7 @@ func main() {
 	Readahead := flag.Int64("Readahead", defaultReadahead, "Bytes ahead of read to prioritize. Set to a negative value to use the default readahead function.")
 	Responsive := flag.Bool("Responsive", false, "Read calls return as soon as possible without waiting for pieces to be verified.")
 	ResumeTorrents := flag.Bool("ResumeTorrents", true, "Resume previous torrents on startup")
+	Profiling := flag.Bool("Profiling", false, "Add pprof handlers for profiling")
 	flag.Parse()
 
 	config := ClientConfig{
@@ -377,6 +380,8 @@ func main() {
 		Readahead:               *Readahead,
 		Responsive:              *Responsive,
 		ResumeTorrents:          *ResumeTorrents,
+
+		Profiling: *Profiling,
 	}
 
 	_, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/torrents", config.Port))
