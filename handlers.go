@@ -2,13 +2,17 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
+	"github.com/anacrolix/squirrel"
 	"github.com/anacrolix/torrent"
 	"github.com/anacrolix/torrent/types/infohash"
 )
@@ -99,9 +103,45 @@ func HandleDeleteInfoHash(c *torrent.Client, config *ClientConfig) http.Handler 
 			http.Error(w, "Torrent not found", http.StatusNotFound)
 			return
 		}
+		defer func() {
+			t.Drop()
+			log.Printf("Dropped torrent: %s", t.Name())
+		}()
 
-		t.Drop()
 		w.WriteHeader(http.StatusNoContent)
+		w.Header().Set("Content-Length", "0")
+
+		if !config.DeleteDataOnTorrentDrop {
+			return
+		}
+
+		sq, err := squirrel.NewCache(createDBOptions(config))
+		if err != nil {
+			log.Printf("error opening database: %v", err)
+			return
+		}
+		defer sq.Close()
+
+		err = sq.Tx(func(tx *squirrel.Tx) error {
+			for i := range t.NumPieces() {
+				p := t.Piece(i)
+				piece_hash := p.Info().V1Hash().Value.HexString()
+				err := tx.Delete(piece_hash)
+				if err != nil && !errors.Is(err, squirrel.ErrNotFound) {
+					return fmt.Errorf("error deleting piece: %w", err)
+				}
+			}
+			return nil
+		})
+
+		if err != nil {
+			log.Printf("error deleting torrent data: %v", err)
+		}
+
+		err = os.Remove(filepath.Join(config.DownloadDir, "torrents", fmt.Sprintf("%s.torrent", t.Name())))
+		if err != nil && !os.IsNotExist(err) {
+			log.Printf("error deleting torrent file: %v", err)
+		}
 	})
 }
 

@@ -9,7 +9,8 @@ local TORRENT_PATTERNS = { "%.torrent$", "^magnet:%?xt=urn:btih:", "^http[s]?://
 local EXCLUDE_PATTERNS = { "127%.0%.0%.1", "192%.168%.%d+%.%d+", "/torrents/" }
 
 local opts = {
-  DeleteTorrentFilesOnExit = false,
+  DeleteDatabaseOnExit = false,
+  DeleteDataOnTorrentDrop = false,
   DisableUTP = true,
   DownloadDir = os.getenv("tmp"),
   MaxConnsPerTorrent = 200,
@@ -17,9 +18,11 @@ local opts = {
   Readahead = 32 * 1024 * 1024,
   Responsive = false,
   ResumeTorrents = true,
+
   startClientOnMpvLaunch = true,
   closeClientOnMpvExit = true,
-  closeClientOnNoTorrentFiles = false -- close torrent client when there are no files from torrents in mpv's playlist
+  closeClientOnNoTorrentFiles = false, -- close torrent client when there are no files from torrents in mpv's playlist
+  removeTorrentOnNoTorrentFiles = false
 }
 options.read_options(opts)
 
@@ -159,7 +162,7 @@ local function playlist_changed(_, playlist)
       end
     end
 
-    if not has_file then
+    if not has_file and opts.removeTorrentOnNoTorrentFiles then
       remove_torrent(info_hash)
     end
   end

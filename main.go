@@ -31,14 +31,15 @@ import (
 )
 
 type ClientConfig struct {
-	DeleteTorrentFilesOnExit bool
-	DisableUTP               bool
-	DownloadDir              string
-	MaxConnsPerTorrent       int
-	Port                     int
-	Readahead                int64
-	Responsive               bool
-	ResumeTorrents           bool
+	DeleteDatabaseOnExit    bool
+	DeleteDataOnTorrentDrop bool
+	DisableUTP              bool
+	DownloadDir             string
+	MaxConnsPerTorrent      int
+	Port                    int
+	Readahead               int64
+	Responsive              bool
+	ResumeTorrents          bool
 }
 
 type TorrentInfo struct {
@@ -129,19 +130,25 @@ func WrapTorrent(t *torrent.Torrent, config *ClientConfig) (TorrentInfo, error) 
 	}, nil
 }
 
+func createDBOptions(config *ClientConfig) squirrel.NewCacheOpts {
+	opts := squirrel.NewCacheOpts{}
+	opts.SetAutoVacuum = generics.Some("incremental")
+	opts.RequireAutoVacuum = generics.Some[any](2)
+	opts.SetJournalMode = "wal"
+	opts.SetSynchronous = 0
+	opts.Path = filepath.Join(config.DownloadDir, "torrents.db")
+	opts.Capacity = -1
+	opts.MmapSizeOk = true
+	opts.MmapSize = 64 << 20
+	opts.CacheSize = generics.Some[int64](-32 << 20)
+	opts.SetLockingMode = "normal"
+	opts.JournalSizeLimit.Set(256 << 20)
+
+	return opts
+}
+
 func InitStorage(config *ClientConfig) (storage.ClientImplCloser, error) {
-	dbOpts := squirrel.NewCacheOpts{}
-	dbOpts.SetAutoVacuum = generics.Some("full")
-	dbOpts.SetJournalMode = "wal"
-	dbOpts.SetSynchronous = 0
-	dbOpts.Path = filepath.Join(config.DownloadDir, "torrents.db")
-	dbOpts.Capacity = -1
-	dbOpts.MmapSizeOk = true
-	dbOpts.MmapSize = 64 << 20
-	dbOpts.CacheSize = generics.Some[int64](-32 << 20)
-	dbOpts.SetLockingMode = "normal"
-	dbOpts.JournalSizeLimit.Set(1 << 30)
-	return sqliteStorage.NewDirectStorage(dbOpts)
+	return sqliteStorage.NewDirectStorage(createDBOptions(config))
 }
 
 func InitClient(userConfig *ClientConfig, db storage.ClientImplCloser) (*torrent.Client, error) {
@@ -225,7 +232,7 @@ func BuildPlaylist(t *torrent.Torrent, config *ClientConfig) (string, error) {
 }
 
 func AddTorrent(c *torrent.Client, id string) (*torrent.Torrent, error) {
-	log.Printf("AddTorrent: %s", id)
+	log.Printf("Adding torrent: %s", id)
 
 	switch {
 	case isMatched(httpPattern, id):
@@ -329,7 +336,7 @@ func run(ctx context.Context, config *ClientConfig) error {
 			log.Printf("error shutting down client: %v", err)
 		}
 		log.Print("Torrent client shutdown successfully")
-		if config.DeleteTorrentFilesOnExit {
+		if config.DeleteDatabaseOnExit {
 			if err := deleteDatabase(config, db); err != nil {
 				log.Print(err)
 			}
@@ -349,7 +356,8 @@ func run(ctx context.Context, config *ClientConfig) error {
 }
 
 func main() {
-	DeleteTorrentFilesOnExit := flag.Bool("DeleteTorrentFilesOnExit", false, "Delete downloaded files before exiting")
+	DeleteDatabaseOnExit := flag.Bool("DeleteDatabaseOnExit", false, "Delete all downloaded files before exiting")
+	DeleteDataOnTorrentDrop := flag.Bool("DeleteDataOnTorrentDrop", false, "Delete a torrent's files after it is dropped")
 	DisableUTP := flag.Bool("DisableUTP", true, "Disables UTP")
 	DownloadDir := flag.String("DownloadDir", os.TempDir(), "Directory where downloaded files are stored")
 	MaxConnsPerTorrent := flag.Int("MaxConnsPerTorrent", defaultMaxConns, "Maximum connections per torrent")
@@ -360,14 +368,15 @@ func main() {
 	flag.Parse()
 
 	config := ClientConfig{
-		DeleteTorrentFilesOnExit: *DeleteTorrentFilesOnExit,
-		DisableUTP:               *DisableUTP,
-		DownloadDir:              *DownloadDir,
-		MaxConnsPerTorrent:       *MaxConnsPerTorrent,
-		Port:                     *Port,
-		Readahead:                *Readahead,
-		Responsive:               *Responsive,
-		ResumeTorrents:           *ResumeTorrents,
+		DeleteDatabaseOnExit:    *DeleteDatabaseOnExit,
+		DeleteDataOnTorrentDrop: *DeleteDataOnTorrentDrop,
+		DisableUTP:              *DisableUTP,
+		DownloadDir:             *DownloadDir,
+		MaxConnsPerTorrent:      *MaxConnsPerTorrent,
+		Port:                    *Port,
+		Readahead:               *Readahead,
+		Responsive:              *Responsive,
+		ResumeTorrents:          *ResumeTorrents,
 	}
 
 	_, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/torrents", config.Port))
