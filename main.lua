@@ -62,7 +62,7 @@ local function start_torrent_client()
       detach = true
     })
 
-    if res.status < 0 then
+    if res.status ~= 0 then
       msg.debug("status:", res.status)
       msg.debug("error_string:", res.error_string)
       msg.debug("stdout:", res.stdout)
