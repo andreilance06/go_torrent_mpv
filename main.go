@@ -31,13 +31,13 @@ import (
 )
 
 type ClientConfig struct {
-	DisableUTP              bool
-	DownloadDir             string
-	MaxConnsPerTorrent      int
-	Port                    int
-	Readahead               int64
-	Responsive              bool
-	ResumeTorrents          bool
+	DisableUTP         bool
+	DownloadDir        string
+	MaxConnsPerTorrent int
+	Port               int
+	Readahead          int64
+	Responsive         bool
+	ResumeTorrents     bool
 
 	Profiling bool
 }
@@ -109,7 +109,7 @@ func WrapTorrent(t *torrent.Torrent, config *ClientConfig) (TorrentInfo, error) 
 		return TorrentInfo{}, err
 	}
 
-	localIP := ips[0]
+	localIP := ips[len(ips)-1]
 	files := make([]FileInfo, 0, len(t.Files()))
 	var torrentLength int64 = 0
 
@@ -356,13 +356,13 @@ func main() {
 	flag.Parse()
 
 	config := ClientConfig{
-		DisableUTP:              *DisableUTP,
-		DownloadDir:             *DownloadDir,
-		MaxConnsPerTorrent:      *MaxConnsPerTorrent,
-		Port:                    *Port,
-		Readahead:               *Readahead,
-		Responsive:              *Responsive,
-		ResumeTorrents:          *ResumeTorrents,
+		DisableUTP:         *DisableUTP,
+		DownloadDir:        *DownloadDir,
+		MaxConnsPerTorrent: *MaxConnsPerTorrent,
+		Port:               *Port,
+		Readahead:          *Readahead,
+		Responsive:         *Responsive,
+		ResumeTorrents:     *ResumeTorrents,
 
 		Profiling: *Profiling,
 	}
