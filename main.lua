@@ -77,7 +77,7 @@ local Client = {
       local t = utils.parse_json(cmd.stdout)
       State.torrents = {}
       for _, v in pairs(t) do
-        State.torrents[v.InfoHash] = { Name = v.Name, Files = v.Files, Length = v.Length }
+        State.torrents[v.InfoHash] = { Name = v.Name, Files = v.Files, Length = v.Length, Playlist = v.Playlist }
       end
     end
   end,
@@ -222,7 +222,7 @@ local Menu = {
         if #v.Files > 1 then
           table.insert(submenu_items, {
             title = "Play all",
-            value = v.Files,
+            value = v.Playlist,
             actions = {
               { name = "play_all",        icon = "playlist_play", label = "Play all files" },
               { name = "play_all_append", icon = "playlist_add",  label = "Append all files to playlist" }
@@ -299,16 +299,10 @@ local Menu = {
         Client:close()
         self:update()
       elseif event.action == "play_all" then
-        local count = 0
-        for _, file in pairs(event.value) do
-          mp.commandv("loadfile", file.URL, count > 0 and "append" or "replace")
-          count = count + 1
-        end
+        mp.commandv("loadfile", "memory://" .. event.value)
         mp.commandv("script-message-to", "uosc", "close-menu", "torrent_menu")
       elseif event.action == "play_all_append" then
-        for _, file in pairs(event.value) do
-          mp.commandv("loadfile", file.URL, "append")
-        end
+        mp.commandv("loadfile", "memory://" .. event.value, "append")
         local item, done = self:update(event.menu_id, event.index)
         item.actions[2].icon = "check"
         done()
