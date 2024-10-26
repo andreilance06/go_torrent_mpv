@@ -47,6 +47,7 @@ type TorrentInfo struct {
 	InfoHash string
 	Files    []FileInfo
 	Length   int64
+	Playlist string
 }
 
 type FileInfo struct {
@@ -104,17 +105,37 @@ func MarshalTorrents(c *torrent.Client, config *ClientConfig) ([]byte, error) {
 
 func WrapTorrent(t *torrent.Torrent, config *ClientConfig) (TorrentInfo, error) {
 	<-t.GotInfo()
-	ips, err := GetLocalIPs()
+	files, err := WrapFiles(t.Files(), config)
 	if err != nil {
 		return TorrentInfo{}, err
 	}
 
-	localIP := ips[len(ips)-1]
-	files := make([]FileInfo, 0, len(t.Files()))
-	var torrentLength int64 = 0
+	var torrentLength int64
+	for _, file := range files {
+		torrentLength += file.Length
+	}
 
-	for _, f := range t.Files() {
-		torrentLength += f.Length()
+	playlist := BuildPlaylist(files, config)
+
+	return TorrentInfo{
+		Name:     t.Name(),
+		InfoHash: t.InfoHash().String(),
+		Files:    files,
+		Length:   torrentLength,
+		Playlist: playlist,
+	}, nil
+}
+
+func WrapFiles(Files []*torrent.File, config *ClientConfig) ([]FileInfo, error) {
+	ips, err := GetLocalIPs()
+	if err != nil {
+		return make([]FileInfo, 0), err
+	}
+
+	localIP := ips[len(ips)-1]
+	files := make([]FileInfo, 0, len(Files))
+
+	for _, f := range Files {
 		files = append(files, FileInfo{
 			Name:   filepath.Base(f.DisplayPath()),
 			URL:    BuildUrl(f, localIP, config.Port),
@@ -126,12 +147,7 @@ func WrapTorrent(t *torrent.Torrent, config *ClientConfig) (TorrentInfo, error) 
 		return files[i].Name < files[j].Name
 	})
 
-	return TorrentInfo{
-		Name:     t.Name(),
-		InfoHash: t.InfoHash().String(),
-		Files:    files,
-		Length:   torrentLength,
-	}, nil
+	return files, nil
 }
 
 func createDBOptions(config *ClientConfig) squirrel.NewCacheOpts {
@@ -213,16 +229,9 @@ func BuildUrl(f *torrent.File, localIP net.IP, Port int) string {
 	return fmt.Sprintf("http://%s:%d/torrents/%s/%s", localIP, Port, f.Torrent().InfoHash(), f.DisplayPath())
 }
 
-func BuildPlaylist(t *torrent.Torrent, config *ClientConfig) (string, error) {
-	<-t.GotInfo()
-
-	torrentInfo, err := WrapTorrent(t, config)
-	if err != nil {
-		return "", err
-	}
+func BuildPlaylist(files []FileInfo, config *ClientConfig) string {
 
 	playlist := []string{"#EXTM3U"}
-	files := torrentInfo.Files
 
 	for _, file := range files {
 		ext := mime.TypeByExtension(filepath.Ext(file.Name))
@@ -232,7 +241,7 @@ func BuildPlaylist(t *torrent.Torrent, config *ClientConfig) (string, error) {
 		}
 	}
 
-	return strings.Join(playlist, "\n"), nil
+	return strings.Join(playlist, "\n")
 }
 
 func AddTorrent(c *torrent.Client, id string) (*torrent.Torrent, error) {

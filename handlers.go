@@ -52,12 +52,14 @@ func HandlePostTorrents(c *torrent.Client, config *ClientConfig) http.Handler {
 			return
 		}
 
-		playlist, err := BuildPlaylist(t, config)
+		files, err := WrapFiles(t.Files(), config)
 		if err != nil {
 			log.Printf("error building playlist: %v", err)
 			http.Error(w, fmt.Sprintf("Error building playlist: %v", err), http.StatusInternalServerError)
 			return
 		}
+
+		playlist := BuildPlaylist(files, config)
 
 		w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
 		fmt.Fprint(w, playlist)
@@ -83,12 +85,14 @@ func HandleGetInfoHash(c *torrent.Client, config *ClientConfig) http.Handler {
 			return
 		}
 
-		playlist, err := BuildPlaylist(t, config)
+		files, err := WrapFiles(t.Files(), config)
 		if err != nil {
 			log.Printf("error building playlist: %v", err)
 			http.Error(w, fmt.Sprintf("Error building playlist %v", err), http.StatusInternalServerError)
 			return
 		}
+
+		playlist := BuildPlaylist(files, config)
 
 		w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
 		fmt.Fprint(w, playlist)
