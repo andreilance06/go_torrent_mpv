@@ -219,6 +219,14 @@ local Menu = {
       -- Add items for each torrent
       for _, v in pairs(State.torrents) do
         local submenu_items = {}
+        table.insert(submenu_items, {
+          title = "Play all",
+          value = v.Files,
+          actions = {
+            { name = "play_all",        icon = "playlist_play", label = "Play all files" },
+            { name = "play_all_append", icon = "playlist_add",  label = "Append all files to playlist" }
+          }
+        })
         for _, file in pairs(v.Files) do
           table.insert(submenu_items, {
             title = file.Name,
@@ -226,9 +234,9 @@ local Menu = {
             icon = mp.get_property("stream-open-filename", "") == file.URL and "music_note" or nil,
             value = file.URL,
             actions = {
-              { name = "play_file",       icon = "play_circle_outline",      label = "Play file" },
-              { name = "playlist_append", icon = "add_to_queue",    label = "Queue" },
-              { name = "play_next",       icon = "queue_play_next", label = "Queue and play next" }
+              { name = "play_file",   icon = "play_circle_outline", label = "Play file" },
+              { name = "play_append", icon = "add_to_queue",        label = "Queue" },
+              { name = "play_next",   icon = "queue_play_next",     label = "Queue and play next" }
             }
           })
         end
@@ -288,10 +296,27 @@ local Menu = {
         done()
         Client:close()
         self:update()
+      elseif event.action == "play_all" then
+        local count = 0
+        for _, file in pairs(event.value) do
+          mp.commandv("loadfile", file.URL, count > 0 and "append" or "replace")
+          count = count + 1
+        end
+        mp.commandv("script-message-to", "uosc", "close-menu", "torrent_menu")
+      elseif event.action == "play_all_append" then
+        for _, file in pairs(event.value) do
+          mp.commandv("loadfile", file.URL, "append")
+        end
+        local item, done = self:update(event.menu_id, event.index)
+        item.actions[2].icon = "check"
+        done()
+        mp.add_timeout(0.5, function()
+          self:update()
+        end)
       elseif event.action == "play_file" then
         mp.commandv("loadfile", event.value)
         mp.commandv("script-message-to", "uosc", "close-menu", "torrent_menu")
-      elseif event.action == "playlist_append" then
+      elseif event.action == "play_append" then
         mp.commandv("loadfile", event.value, "append")
         local item, done = self:update(event.menu_id, event.index)
         item.actions[2].icon = "check"
