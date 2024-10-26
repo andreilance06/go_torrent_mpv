@@ -88,7 +88,7 @@ local Client = {
       if self:is_running() then
         msg.debug("Client is already running")
         State.client_running = true
-        return
+        return true
       end
 
       local res = mp.command_native({
