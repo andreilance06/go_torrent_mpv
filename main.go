@@ -31,8 +31,6 @@ import (
 )
 
 type ClientConfig struct {
-	DeleteDatabaseOnExit    bool
-	DeleteDataOnTorrentDrop bool
 	DisableUTP              bool
 	DownloadDir             string
 	MaxConnsPerTorrent      int
@@ -308,16 +306,6 @@ func gracefulShutdown(server *http.Server) error {
 	return nil
 }
 
-func deleteDatabase(config *ClientConfig, db storage.ClientImplCloser) error {
-	if err := db.Close(); err != nil {
-		return fmt.Errorf("error closing database: %w", err)
-	}
-	if err := os.Remove(filepath.Join(config.DownloadDir, "bolt.db")); err != nil {
-		return fmt.Errorf("error deleting database: %w", err)
-	}
-	return nil
-}
-
 func run(ctx context.Context, config *ClientConfig) error {
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer cancel()
@@ -342,11 +330,6 @@ func run(ctx context.Context, config *ClientConfig) error {
 			log.Printf("error shutting down client: %v", err)
 		}
 		log.Print("Torrent client shutdown successfully")
-		if config.DeleteDatabaseOnExit {
-			if err := deleteDatabase(config, db); err != nil {
-				log.Print(err)
-			}
-		}
 	}()
 
 	server := InitServer(c, config, cancel)
@@ -362,8 +345,6 @@ func run(ctx context.Context, config *ClientConfig) error {
 }
 
 func main() {
-	DeleteDatabaseOnExit := flag.Bool("DeleteDatabaseOnExit", false, "Delete all downloaded files before exiting")
-	DeleteDataOnTorrentDrop := flag.Bool("DeleteDataOnTorrentDrop", false, "Delete a torrent's files after it is dropped")
 	DisableUTP := flag.Bool("DisableUTP", true, "Disables UTP")
 	DownloadDir := flag.String("DownloadDir", os.TempDir(), "Directory where downloaded files are stored")
 	MaxConnsPerTorrent := flag.Int("MaxConnsPerTorrent", defaultMaxConns, "Maximum connections per torrent")
@@ -375,8 +356,6 @@ func main() {
 	flag.Parse()
 
 	config := ClientConfig{
-		DeleteDatabaseOnExit:    *DeleteDatabaseOnExit,
-		DeleteDataOnTorrentDrop: *DeleteDataOnTorrentDrop,
 		DisableUTP:              *DisableUTP,
 		DownloadDir:             *DownloadDir,
 		MaxConnsPerTorrent:      *MaxConnsPerTorrent,

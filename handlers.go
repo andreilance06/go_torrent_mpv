@@ -111,7 +111,7 @@ func HandleDeleteInfoHash(c *torrent.Client, config *ClientConfig) http.Handler 
 		w.WriteHeader(http.StatusNoContent)
 		w.Header().Set("Content-Length", "0")
 
-		if !config.DeleteDataOnTorrentDrop {
+		if r.URL.Query().Get("DeleteFiles") != "true" {
 			return
 		}
 

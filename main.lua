@@ -17,8 +17,6 @@ local State = {
 -- Configuration
 local Config = {
   opts = {
-    DeleteDatabaseOnExit = false,
-    DeleteDataOnTorrentDrop = false,
     DisableUTP = true,
     DownloadDir = os.getenv("tmp"),
     MaxConnsPerTorrent = 200,
@@ -77,6 +75,7 @@ local Client = {
       end
 
       local t = utils.parse_json(cmd.stdout)
+      State.torrents = {}
       for _, v in pairs(t) do
         State.torrents[v.InfoHash] = { Name = v.Name, Files = v.Files, Length = v.Length }
       end
@@ -151,7 +150,7 @@ local TorrentOps = {
     return playlist
   end,
 
-  remove = function(self, info_hash)
+  remove = function(self, info_hash, delete_files)
     if not State.client_running then
       msg.error("Server must be online to remove torrents")
       return false
@@ -162,10 +161,14 @@ local TorrentOps = {
       return false
     end
 
+    if delete_files == nil then
+      delete_files = false
+    end
+
     mp.command_native({
       name = "subprocess",
       playback_only = false,
-      args = { "curl", "-X", "DELETE", "localhost:" .. Config.opts.Port .. "/torrents/" .. info_hash },
+      args = { "curl", "-X", "DELETE", "localhost:" .. Config.opts.Port .. "/torrents/" .. info_hash .. "?DeleteFiles=" .. tostring(delete_files)},
       detach = true
     })
     State.torrents[info_hash] = nil
@@ -250,10 +253,10 @@ local Menu = {
     local event = utils.parse_json(json_event)
     if event.type == "activate" then
       if event.action == "delete" then
-        TorrentOps:remove(event.value)
+        TorrentOps:remove(event.value, false)
         self:show()
       elseif event.action == "delete_files" then
-        TorrentOps:remove(event.value)
+        TorrentOps:remove(event.value, true)
         self:show()
       else
         if event.menu_id ~= "Remove Torrent" then
