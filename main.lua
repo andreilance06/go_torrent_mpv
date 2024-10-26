@@ -288,12 +288,14 @@ local Menu = {
     if event.type == "activate" then
       if event.value == "client_start" then
         local item, done = self:update(event.menu_id, event.index)
+        item.value = "noop"
         item.icon = "spinner"
         done()
         Client:start()
         self:update()
       elseif event.value == "client_stop" then
         local item, done = self:update(event.menu_id, event.index)
+        item.value = "noop"
         item.icon = "spinner"
         done()
         Client:close()
@@ -304,6 +306,7 @@ local Menu = {
       elseif event.action == "play_all_append" then
         mp.commandv("loadfile", "memory://" .. event.value, "append")
         local item, done = self:update(event.menu_id, event.index)
+        item.actions[2].name = "noop"
         item.actions[2].icon = "check"
         done()
         mp.add_timeout(0.5, function()
@@ -315,6 +318,7 @@ local Menu = {
       elseif event.action == "play_append" then
         mp.commandv("loadfile", event.value, "append")
         local item, done = self:update(event.menu_id, event.index)
+        item.actions[2].name = "noop"
         item.actions[2].icon = "check"
         done()
         mp.add_timeout(0.5, function()
@@ -323,6 +327,7 @@ local Menu = {
       elseif event.action == "play_next" then
         mp.commandv("loadfile", event.value, "insert-next")
         local item, done = self:update(event.menu_id, event.index)
+        item.actions[3].name = "noop"
         item.actions[3].icon = "check"
         done()
         mp.add_timeout(0.5, function()
@@ -330,12 +335,14 @@ local Menu = {
         end)
       elseif event.action == "delete" then
         local item, done = self:update(event.menu_id, event.index)
+        item.actions = {}
         item.icon = "spinner"
         done()
         TorrentOps:remove(event.value, false)
         self:update()
       elseif event.action == "delete_files" then
         local item, done = self:update(event.menu_id, event.index)
+        item.actions = {}
         item.icon = "spinner"
         done()
         TorrentOps:remove(event.value, true)
