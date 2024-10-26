@@ -48,6 +48,7 @@ type TorrentInfo struct {
 	Name     string
 	InfoHash string
 	Files    []FileInfo
+	Length   int64
 }
 
 type FileInfo struct {
@@ -112,8 +113,10 @@ func WrapTorrent(t *torrent.Torrent, config *ClientConfig) (TorrentInfo, error) 
 
 	localIP := ips[0]
 	files := make([]FileInfo, 0, len(t.Files()))
+	var torrentLength int64 = 0
 
 	for _, f := range t.Files() {
+		torrentLength += f.Length()
 		files = append(files, FileInfo{
 			Name:   filepath.Base(f.DisplayPath()),
 			URL:    BuildUrl(f, localIP, config.Port),
@@ -129,6 +132,7 @@ func WrapTorrent(t *torrent.Torrent, config *ClientConfig) (TorrentInfo, error) 
 		Name:     t.Name(),
 		InfoHash: t.InfoHash().String(),
 		Files:    files,
+		Length:   torrentLength,
 	}, nil
 }
 
