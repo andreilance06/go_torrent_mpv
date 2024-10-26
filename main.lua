@@ -1,213 +1,334 @@
+-- Utils
 local msg = require("mp.msg")
 local utils = require("mp.utils")
 local options = require("mp.options")
 
-local client_running
-local launched_by_us
-local torrents = {}
+-- Constants
 local TORRENT_PATTERNS = { "%.torrent$", "^magnet:%?xt=urn:btih:", "^http[s]?://", "^" .. string.rep("%x", 40) .. "$" }
 local EXCLUDE_PATTERNS = { "127%.0%.0%.1", "192%.168%.%d+%.%d+", "/torrents/" }
 
-local opts = {
-  DeleteDatabaseOnExit = false,
-  DeleteDataOnTorrentDrop = false,
-  DisableUTP = true,
-  DownloadDir = os.getenv("tmp"),
-  MaxConnsPerTorrent = 200,
-  Port = 6969,
-  Readahead = 32 * 1024 * 1024,
-  Responsive = false,
-  ResumeTorrents = true,
-
-  Profiling = false,
-
-  startClientOnMpvLaunch = true,
-  closeClientOnMpvExit = true,
-  closeClientOnNoTorrentFiles = false, -- close torrent client when there are no files from torrents in mpv's playlist
-  removeTorrentOnNoTorrentFiles = false
+-- State management
+local State = {
+  client_running = false,
+  launched_by_us = false,
+  torrents = {},
 }
-options.read_options(opts)
 
-local function load_options()
-  local t = {}
-  for i, v in pairs(opts) do
-    local first_char = i:sub(1, 1)
-    if string.upper(first_char) == first_char then
-      t[#t + 1] = "--" .. i .. "=" .. tostring(v)
+-- Configuration
+local Config = {
+  opts = {
+    DeleteDatabaseOnExit = false,
+    DeleteDataOnTorrentDrop = false,
+    DisableUTP = true,
+    DownloadDir = os.getenv("tmp"),
+    MaxConnsPerTorrent = 200,
+    Port = 6969,
+    Readahead = 32 * 1024 * 1024,
+    Responsive = false,
+    ResumeTorrents = true,
+    Profiling = false,
+    startClientOnMpvLaunch = true,
+    closeClientOnMpvExit = true,
+    closeClientOnNoTorrentFiles = false
+  },
+
+  load = function(self)
+    options.read_options(self.opts)
+    return self
+  end,
+
+  get_client_args = function(self)
+    local args = {}
+    for i, v in pairs(self.opts) do
+      local first_char = i:sub(1, 1)
+      if string.upper(first_char) == first_char then
+        args[#args + 1] = "--" .. i .. "=" .. tostring(v)
+      end
     end
+    return args
   end
-  return t
-end
+}
 
-local function is_running()
-  local cmd = mp.command_native({
-    name = "subprocess",
-    playback_only = false,
-    capture_stdout = true,
-    capture_stderr = true,
-    args = { "curl", "-s", "--connect-timeout", "0.25", "localhost:" .. opts.Port .. "/torrents" }
-  })
-
-  return cmd.status == 0
-end
-
-local function start_torrent_client()
-  if not client_running then
-    if is_running() then
-      msg.debug("Client is already running")
-      client_running = true
-      return
-    end
-
-    local res = mp.command_native({
+-- Client management
+local Client = {
+  is_running = function(self)
+    local cmd = mp.command_native({
       name = "subprocess",
       playback_only = false,
+      capture_stdout = true,
       capture_stderr = true,
-      args = { mp.get_script_directory() .. "/go_torrent_mpv.exe", table.unpack(load_options()) },
-      detach = true
+      args = { "curl", "-s", "--connect-timeout", "0.25", "localhost:" .. Config.opts.Port .. "/torrents" }
     })
+    return cmd.status == 0
+  end,
 
-    if res.status ~= 0 then
-      msg.debug("status:", res.status)
-      msg.debug("error_string:", res.error_string)
-      msg.debug("stdout:", res.stdout)
-      msg.debug("stderr:", res.stderr)
-      return
+  update_status = function(self)
+    if State.client_running then
+      local cmd = mp.command_native({
+        name = "subprocess",
+        playback_only = false,
+        capture_stdout = true,
+        capture_stderr = true,
+        args = { "curl", "-s", "--connect-timeout", "0.25", "localhost:" .. Config.opts.Port .. "/torrents" }
+      })
+
+      if cmd.status ~= 0 then
+        return nil
+      end
+
+      local t = utils.parse_json(cmd.stdout)
+      for _, v in pairs(t) do
+        State.torrents[v.InfoHash] = { Name = v.Name, Files = v.Files, Length = v.Length }
+      end
+    end
+  end,
+
+  start = function(self)
+    if not State.client_running then
+      if self:is_running() then
+        msg.debug("Client is already running")
+        State.client_running = true
+        return
+      end
+
+      local res = mp.command_native({
+        name = "subprocess",
+        playback_only = false,
+        capture_stderr = true,
+        args = { mp.get_script_directory() .. "/go_torrent_mpv.exe", table.unpack(Config:get_client_args()) },
+        detach = true
+      })
+
+      if res.status ~= 0 then
+        msg.debug("Failed to start client:", res.stderr)
+        return false
+      end
+
+      msg.debug("Started torrent server")
+      State.client_running = true
+      State.launched_by_us = true
+      return true
+    end
+    return false
+  end,
+
+  close = function(self)
+    if State.client_running and State.launched_by_us then
+      mp.command_native({
+        name = "subprocess",
+        playback_only = false,
+        capture_stderr = true,
+        args = { "curl", "localhost:" .. Config.opts.Port .. "/exit" }
+      })
+      msg.debug("Closed torrent server")
+      State.client_running = false
+      State.launched_by_us = false
+    end
+  end
+}
+
+-- Torrent operations
+local TorrentOps = {
+  add = function(self, torrent_url)
+    if not State.client_running then
+      msg.error("Server must be online to add torrents")
+      return nil
     end
 
-    msg.debug("Started torrent server")
-    client_running = true
-    launched_by_us = true
-  end
-end
+    local playlist_req = mp.command_native({
+      name = "subprocess",
+      capture_stdout = true,
+      args = { "curl", "-s", "--retry", "10", "--retry-delay", "1", "--retry-connrefused", "-d",
+        torrent_url, "localhost:" .. Config.opts.Port .. "/torrents" }
+    })
 
-local function close_torrent_client()
-  if client_running and launched_by_us then
+    local playlist = playlist_req.stdout
+    if not playlist or #playlist == 0 then
+      msg.debug("Unable to get playlist for", torrent_url)
+      return nil
+    end
+
+    return playlist
+  end,
+
+  remove = function(self, info_hash)
+    if not State.client_running then
+      msg.error("Server must be online to remove torrents")
+      return false
+    end
+
+    if not State.torrents[info_hash] then
+      msg.error("Torrent", info_hash, "does not exist")
+      return false
+    end
+
     mp.command_native({
       name = "subprocess",
       playback_only = false,
-      capture_stderr = true,
-      args = { "curl", "localhost:" .. opts.Port .. "/exit" }
+      args = { "curl", "-X", "DELETE", "localhost:" .. Config.opts.Port .. "/torrents/" .. info_hash },
+      detach = true
     })
-    msg.debug("Closed torrent server")
-    client_running = false
-    launched_by_us = false
+    State.torrents[info_hash] = nil
+    return true
   end
-end
+}
 
-local function add_torrent(torrent_url)
-  if not client_running then
-    msg.error("Server must be online to add torrents")
-    return
-  end
+-- Menu integration
+local Menu = {
+  create_torrent_menu = function(self)
+    local menu_items = {}
+    Client:update_status()
 
-  local playlist_req = mp.command_native({
-    name = "subprocess",
-    capture_stdout = true,
-    args = { "curl", "-s", "--retry", "10", "--retry-delay", "1", "--retry-connrefused", "-d",
-      torrent_url, "localhost:" .. opts.Port .. "/torrents" }
-  })
+    -- Add client control items
+    table.insert(menu_items, {
+      title = "Client Controls",
+      items = {
+        {
+          title = State.client_running and "Stop Client" or "Start Client",
+          icon = State.client_running and "stop" or "play_arrow",
+          value = State.client_running and "script-message-to go_torrent_mpv client-stop" or
+              "script-message-to go_torrent_mpv client-start"
+        }
+      }
+    })
 
-  local playlist = playlist_req.stdout
+    if State.client_running then
 
-  if not playlist or #playlist == 0 then
-    msg.debug("Unable to get playlist for", torrent_url)
-    return
-  end
+      local remove_torrents_submenu = {}
+      for i, v in pairs(State.torrents) do
+        local submenu_items = {}
+        table.insert(remove_torrents_submenu, {
+          title = v.Name,
+          hint = string.format("%.1f GB", v.Length / (1024 * 1024 * 1024)),
+          value = i,
+          actions = {
+            {name = "delete", icon = "delete", label = "Delete torrent"},
+            {name = "delete_files", icon = "delete_forever", label = "Delete torrent & files"}
+          }
+        })
 
-  return playlist
-end
+      end
+      table.insert(menu_items, {
+        title = "Remove Torrent",
+        items = remove_torrents_submenu
+      })
 
-local function remove_torrent(info_hash)
-  if not client_running then
-    msg.error("Server must be online to remove torrents")
-    return
-  end
 
-  if not torrents[info_hash] then
-    msg.error("Torrent", info_hash, "does not exist")
-    return
-  end
+      -- Add items for each torrent
+      for i, v in pairs(State.torrents) do
+        local submenu_items = {}
+        for _, file in pairs(v.Files) do
+          table.insert(submenu_items, {
+            title = file.Name,
+            hint = string.format("%.1f MB", file.Length / (1024 * 1024)),
+            value = string.format("loadfile \"%s\"", file.URL),
+          })
+        end
 
-  mp.command_native({
-    name = "subprocess",
-    playback_only = false,
-    args = { "curl", "-X", "DELETE", "localhost:" .. opts.Port .. "/torrents/" .. info_hash },
-    detach = true
-  })
-  torrents[info_hash] = nil
-end
-
-local function index_playlist(playlist)
-  local info_hash = playlist:match(string.rep("%x", 40))
-  torrents[info_hash] = {}
-
-  for line in playlist:gmatch("([^%\n]+)") do
-    if not line:find("^#") then
-      table.insert(torrents[info_hash], line)
+        table.insert(menu_items, {
+          title = v.Name,
+          hint = string.format("%d files", #v.Files),
+          items = submenu_items
+        })
+      end
     end
-  end
-end
 
-local function playlist_changed(_, playlist)
-  for info_hash, files in pairs(torrents) do
-    local has_file = false
-    for _, file in pairs(files) do
-      for _, playlist_entry in pairs(playlist) do
-        if playlist_entry.filename == file then
-          has_file = true
-          break
+    return {
+      type = "torrent_menu",
+      title = "Torrent Manager",
+      items = menu_items,
+      callback = { mp.get_script_name(), "menu-callback" }
+    }
+  end,
+
+  show = function(self)
+    local menu_data = self:create_torrent_menu()
+    mp.commandv("script-message-to", "uosc", "open-menu", utils.format_json(menu_data))
+  end,
+
+  handle_callback = function(self, json_event)
+    local event = utils.parse_json(json_event)
+    if event.type == "activate" then
+      if event.action == "delete" then
+        TorrentOps:remove(event.value)
+        self:show()
+      elseif event.action == "delete_files" then
+        TorrentOps:remove(event.value)
+        self:show()
+      else
+        if event.menu_id ~= "Remove Torrent" then
+          mp.command(event.value)
         end
       end
-      if has_file then
-        break
+      if event.menu_id ~= "Client Controls" and event.menu_id ~= "Remove Torrent" then
+        mp.commandv("script-message-to", "uosc", "close-menu", "torrent_menu")
       end
     end
-
-    if not has_file and opts.removeTorrentOnNoTorrentFiles then
-      remove_torrent(info_hash)
-    end
   end
-end
+}
 
-local function on_load(hook)
+-- Event handlers
+local function on_file_loaded()
   local path = mp.get_property("stream-open-filename", "")
 
   for _, pattern in ipairs(EXCLUDE_PATTERNS) do
-    if path:find(pattern) then
-      return
-    end
+    if path:find(pattern) then return end
   end
-
-  msg.debug("Loading", path)
 
   for _, pattern in ipairs(TORRENT_PATTERNS) do
     if path:find(pattern) then
-      msg.debug("Pattern", pattern, "found")
-      start_torrent_client()
-      local playlist = add_torrent(path)
-
-      if playlist then
-        index_playlist(playlist)
-        mp.set_property("stream-open-filename", "memory://" .. playlist)
-        return
-      else
-        break
+      if Client:start() then
+        local playlist = TorrentOps:add(path)
+        if playlist then
+          Client:update_status()
+          mp.set_property("stream-open-filename", "memory://" .. playlist)
+          return
+        end
       end
+      break
     end
   end
-  msg.debug("Unable to load", path)
 
-  if next(torrents) == nil and opts.closeClientOnNoTorrentFiles then
-    close_torrent_client()
+  if next(State.torrents) == nil and Config.opts.closeClientOnNoTorrentFiles then
+    Client:close()
   end
 end
 
-mp.add_hook("on_load", 50, on_load)
-mp.observe_property("playlist", "native", playlist_changed)
-if opts.closeClientOnMpvExit then
-  mp.register_event("shutdown", close_torrent_client)
+-- Script initialization
+local function init()
+  Config:load()
+
+  -- Register menu command
+  mp.add_key_binding("Alt+t", "toggle-torrent-menu", function()
+    Menu:show()
+  end)
+
+  -- Register menu callback handler
+  mp.register_script_message("menu-callback", function(json)
+    Menu:handle_callback(json)
+  end)
+
+  -- Register client control handlers
+  mp.register_script_message("client-start", function()
+    Client:start()
+    Menu:show()
+  end)
+
+  mp.register_script_message("client-stop", function()
+    Client:close()
+    Menu:show()
+  end)
+
+  -- Register MPV event handlers
+  mp.add_hook("on_load", 50, on_file_loaded)
+
+  if Config.opts.closeClientOnMpvExit then
+    mp.register_event("shutdown", function() Client:close() end)
+  end
+
+  if Config.opts.startClientOnMpvLaunch then
+    Client:start()
+  end
 end
-if opts.startClientOnMpvLaunch then
-  start_torrent_client()
-end
+
+init()
