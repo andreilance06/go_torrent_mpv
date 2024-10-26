@@ -219,14 +219,16 @@ local Menu = {
       -- Add items for each torrent
       for _, v in pairs(State.torrents) do
         local submenu_items = {}
-        table.insert(submenu_items, {
-          title = "Play all",
-          value = v.Files,
-          actions = {
-            { name = "play_all",        icon = "playlist_play", label = "Play all files" },
-            { name = "play_all_append", icon = "playlist_add",  label = "Append all files to playlist" }
-          }
-        })
+        if #v.Files > 1 then
+          table.insert(submenu_items, {
+            title = "Play all",
+            value = v.Files,
+            actions = {
+              { name = "play_all",        icon = "playlist_play", label = "Play all files" },
+              { name = "play_all_append", icon = "playlist_add",  label = "Append all files to playlist" }
+            }
+          })
+        end
         for _, file in pairs(v.Files) do
           table.insert(submenu_items, {
             title = file.Name,
