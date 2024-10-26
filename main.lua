@@ -69,7 +69,7 @@ local Client = {
         playback_only = false,
         capture_stdout = true,
         capture_stderr = true,
-        args = { "curl", "-s", "--connect-timeout", "0.25", "localhost:" .. Config.opts.Port .. "/torrents" }
+        args = { "curl", "-s", "--connect-timeout", "5", "localhost:" .. Config.opts.Port .. "/torrents" }
       })
 
       if cmd.status ~= 0 then
