@@ -7,13 +7,6 @@ local options = require("mp.options")
 local TORRENT_PATTERNS = { "%.torrent$", "^magnet:%?xt=urn:btih:", "^http[s]?://", "^" .. string.rep("%x", 40) .. "$" }
 local EXCLUDE_PATTERNS = { "127%.0%.0%.1", "192%.168%.%d+%.%d+", "/torrents/" }
 
--- State management
-local State = {
-  client_running = false,
-  launched_by_us = false,
-  torrents = {},
-}
-
 -- Configuration
 local Config = {
   opts = {
@@ -31,11 +24,6 @@ local Config = {
   }
 }
 
-function Config.load()
-  options.read_options(Config.opts)
-  return Config
-end
-
 function Config.get_client_args()
   local args = {}
   for i, v in pairs(Config.opts) do
@@ -47,20 +35,14 @@ function Config.get_client_args()
   return args
 end
 
--- Client management
-local Client = {}
-function Client.is_running()
-  local cmd = mp.command_native({
-    name = "subprocess",
-    playback_only = false,
-    capture_stdout = true,
-    capture_stderr = true,
-    args = { "curl", "-s", "--connect-timeout", "0.25", "localhost:" .. Config.opts.Port .. "/torrents" }
-  })
-  return cmd.status == 0
-end
+-- State management
+local State = {
+  client_running = false,
+  launched_by_us = false,
+  torrents = {},
+}
 
-function Client.update_status()
+function State.update()
   if State.client_running then
     local cmd = mp.command_native({
       name = "subprocess",
@@ -80,6 +62,19 @@ function Client.update_status()
       State.torrents[v.InfoHash] = { Name = v.Name, Files = v.Files, Length = v.Length, Playlist = v.Playlist }
     end
   end
+end
+
+-- Client management
+local Client = {}
+function Client.is_running()
+  local cmd = mp.command_native({
+    name = "subprocess",
+    playback_only = false,
+    capture_stdout = true,
+    capture_stderr = true,
+    args = { "curl", "-s", "--connect-timeout", "0.25", "localhost:" .. Config.opts.Port .. "/torrents" }
+  })
+  return cmd.status == 0
 end
 
 function Client.start()
@@ -178,7 +173,7 @@ local Menu = {}
 function Menu.create_torrent_menu(menu_id, index)
   local menu_items = {}
   local to_update
-  Client.update_status()
+  State.update()
 
   -- Add client control items
   table.insert(menu_items, {
@@ -362,7 +357,7 @@ local function on_file_loaded()
       if Client.start() then
         local playlist = TorrentOps.add(path)
         if playlist then
-          Client.update_status()
+          State.update()
           mp.set_property("stream-open-filename", "memory://" .. playlist)
           return
         end
@@ -378,7 +373,7 @@ end
 
 -- Script initialization
 local function init()
-  Config.load()
+  options.read_options(Config.opts)
 
   -- Register menu command
   mp.add_key_binding("Alt+t", "toggle-torrent-menu", function()
