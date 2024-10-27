@@ -100,6 +100,10 @@ func MarshalTorrents(c *torrent.Client, config *ClientConfig) ([]byte, error) {
 
 	}
 
+	sort.Slice(torrents, func(i, j int) bool {
+		return torrents[i].Name < torrents[j].Name
+	})
+
 	return json.Marshal(torrents)
 }
 
