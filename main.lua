@@ -168,7 +168,7 @@ local TorrentOps = {
     mp.command_native({
       name = "subprocess",
       playback_only = false,
-      args = { "curl", "-X", "DELETE", "localhost:" .. Config.opts.Port .. "/torrents/" .. info_hash .. "?DeleteFiles=" .. tostring(delete_files)},
+      args = { "curl", "-X", "DELETE", "localhost:" .. Config.opts.Port .. "/torrents/" .. info_hash .. "?DeleteFiles=" .. tostring(delete_files) },
       detach = true
     })
     State.torrents[info_hash] = nil
@@ -196,25 +196,25 @@ local Menu = {
     })
 
     if State.client_running then
-
       local remove_torrents_submenu = {}
       for i, v in pairs(State.torrents) do
-        local submenu_items = {}
         table.insert(remove_torrents_submenu, {
           title = v.Name,
           hint = string.format("%.1f GB", v.Length / (1024 * 1024 * 1024)),
           value = i,
           actions = {
-            {name = "delete", icon = "delete", label = "Delete torrent"},
-            {name = "delete_files", icon = "delete_forever", label = "Delete torrent & files"}
+            { name = "delete",       icon = "delete",         label = "Delete torrent" },
+            { name = "delete_files", icon = "delete_forever", label = "Delete torrent & files" }
           }
         })
-
       end
-      table.insert(menu_items, {
-        title = "Remove Torrent",
-        items = remove_torrents_submenu
-      })
+
+      if next(State.torrents) ~= nil then
+        table.insert(menu_items, {
+          title = "Remove Torrent",
+          items = remove_torrents_submenu
+        })
+      end
 
 
       -- Add items for each torrent
