@@ -226,7 +226,7 @@ function Menu.create_torrent_menu(menu_id, index)
         table.insert(submenu_items, {
           title = file.Name,
           hint = string.format("%.1f MB", file.Length / (1024 * 1024)),
-          icon = mp.get_property("stream-open-filename", "") == file.URL and "music_note" or nil,
+          active = mp.get_property("stream-open-filename", "") == file.URL and true or false,
           value = file.URL,
           actions = {
             { name = "play_file",   icon = "play_circle_outline", label = "Play file" },
