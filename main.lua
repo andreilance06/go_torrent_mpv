@@ -207,7 +207,8 @@ function Menu.create_torrent_menu(menu_id, index)
     end
 
     if next(State.torrents) ~= nil then
-      table.insert(menu_items, {
+      -- Append to previous item (Client Controls)
+      table.insert(menu_items[#menu_items].items, {
         title = "Remove Torrent",
         items = remove_torrents_submenu
       })
