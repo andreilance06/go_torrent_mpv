@@ -43,25 +43,32 @@ local State = {
 }
 
 function State.update()
-  if State.client_running then
-    local cmd = mp.command_native({
-      name = "subprocess",
-      playback_only = false,
-      capture_stdout = true,
-      capture_stderr = true,
-      args = { "curl", "-s", "--connect-timeout", "5", "localhost:" .. Config.opts.Port .. "/torrents" }
-    })
-
-    if cmd.status ~= 0 then
-      return nil
-    end
-
-    local t = utils.parse_json(cmd.stdout)
-    State.torrents = {}
-    for _, v in pairs(t) do
-      State.torrents[v.InfoHash] = { Name = v.Name, Files = v.Files, Length = v.Length, Playlist = v.Playlist }
-    end
+  State.torrents = {}
+  if not State.client_running then
+    msg.error("error updating client state: client is not running")
+    return false
   end
+
+  local cmd = mp.command_native({
+    name = "subprocess",
+    playback_only = false,
+    capture_stdout = true,
+    capture_stderr = true,
+    args = { "curl", "-s", "--connect-timeout", "5", "localhost:" .. Config.opts.Port .. "/torrents" }
+  })
+
+  if cmd.status ~= 0 then
+    State.client_running = false
+    msg.error("error updating client state: subprocess status is", cmd.status)
+    return false
+  end
+
+  local t = utils.parse_json(cmd.stdout)
+  for _, v in pairs(t) do
+    State.torrents[v.InfoHash] = { Name = v.Name, Files = v.Files, Length = v.Length, Playlist = v.Playlist }
+  end
+
+  return true
 end
 
 -- Client management
@@ -78,53 +85,67 @@ function Client.is_running()
 end
 
 function Client.start()
-  if not State.client_running then
-    if Client.is_running() then
-      msg.debug("Client is already running")
-      State.client_running = true
-      return true
-    end
-
-    local res = mp.command_native({
-      name = "subprocess",
-      playback_only = false,
-      capture_stderr = true,
-      args = { mp.get_script_directory() .. "/go_torrent_mpv.exe", table.unpack(Config.get_client_args()) },
-      detach = true
-    })
-
-    if res.status ~= 0 then
-      msg.debug("Failed to start client:", res.stderr)
-      return false
-    end
-
-    msg.debug("Started torrent server")
-    State.client_running = true
-    State.launched_by_us = true
+  if State.client_running then
     return true
   end
+
+  if Client.is_running() then
+    msg.debug("Client is already running")
+    State.client_running = true
+    return true
+  end
+
+  local res = mp.command_native({
+    name = "subprocess",
+    playback_only = false,
+    capture_stderr = true,
+    args = { mp.get_script_directory() .. "/go_torrent_mpv.exe", table.unpack(Config.get_client_args()) },
+    detach = true
+  })
+
+  if res.status ~= 0 then
+    msg.error("error starting client:", res.stderr)
+    return false
+  end
+
+  msg.debug("Started torrent server")
+  State.client_running = true
+  State.launched_by_us = true
   return true
 end
 
 function Client.close()
-  if State.client_running and State.launched_by_us then
-    mp.command_native({
-      name = "subprocess",
-      playback_only = false,
-      capture_stderr = true,
-      args = { "curl", "localhost:" .. Config.opts.Port .. "/exit" }
-    })
-    msg.debug("Closed torrent server")
-    State.client_running = false
-    State.launched_by_us = false
+  if not State.client_running then
+    msg.debug("Client is already closed")
+    return true
   end
+  if not State.launched_by_us then
+    msg.debug("Can't close client launched by another process")
+    return false
+  end
+  local res = mp.command_native({
+    name = "subprocess",
+    playback_only = false,
+    capture_stderr = true,
+    args = { "curl", "localhost:" .. Config.opts.Port .. "/exit" }
+  })
+
+  if res.status ~= 0 then
+    msg.error("error closing client:", res.stderr)
+    return false
+  end
+
+  State.client_running = false
+  State.launched_by_us = false
+  msg.debug("Closed torrent server")
+  return true
 end
 
 -- Torrent operations
 local TorrentOps = {}
 function TorrentOps.add(torrent_url)
   if not State.client_running then
-    msg.error("Server must be online to add torrents")
+    msg.error("error adding torrent: server must be online")
     return nil
   end
 
@@ -146,12 +167,12 @@ end
 
 function TorrentOps.remove(info_hash, delete_files)
   if not State.client_running then
-    msg.error("Server must be online to remove torrents")
+    msg.error("error deleting torrent: server must be online")
     return false
   end
 
   if not State.torrents[info_hash] then
-    msg.error("Torrent", info_hash, "does not exist")
+    msg.error("error deleting torrent: torrent", info_hash, "does not exist")
     return false
   end
 
@@ -159,13 +180,13 @@ function TorrentOps.remove(info_hash, delete_files)
     delete_files = false
   end
 
-  mp.command_native({
+ local res = mp.command_native({
     name = "subprocess",
     playback_only = false,
     args = { "curl", "-X", "DELETE", "localhost:" .. Config.opts.Port .. "/torrents/" .. info_hash .. "?DeleteFiles=" .. tostring(delete_files) },
   })
-  State.torrents[info_hash] = nil
-  return true
+
+  return res.status ~= 0
 end
 
 -- Menu integration
