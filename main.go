@@ -193,21 +193,23 @@ func InitClient(userConfig *ClientConfig, db storage.ClientImplCloser) (*torrent
 		return c, nil
 	}
 
-	files, err := os.ReadDir(filepath.Join(userConfig.DownloadDir, "torrents"))
-	if err != nil && !os.IsNotExist(err) {
-		log.Printf("error retrieving saved torrents: %v", err)
-	}
-
-	for _, v := range files {
-		_, err := AddTorrent(c, filepath.Join(userConfig.DownloadDir, "torrents", v.Name()))
-		if err != nil {
-			log.Printf(
-				"error resuming torrent %s: %v",
-				v.Name(),
-				err,
-			)
+	go func() {
+		files, err := os.ReadDir(filepath.Join(userConfig.DownloadDir, "torrents"))
+		if err != nil && !os.IsNotExist(err) {
+			log.Printf("error retrieving saved torrents: %v", err)
 		}
-	}
+
+		for _, v := range files {
+			_, err := AddTorrent(c, filepath.Join(userConfig.DownloadDir, "torrents", v.Name()))
+			if err != nil {
+				log.Printf(
+					"error resuming torrent %s: %v",
+					v.Name(),
+					err,
+				)
+			}
+		}
+	}()
 
 	return c, nil
 }
