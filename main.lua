@@ -181,7 +181,7 @@ function TorrentOps.remove(info_hash, delete_files)
     delete_files = false
   end
 
- local res = mp.command_native({
+  local res = mp.command_native({
     name = "subprocess",
     playback_only = false,
     args = { "curl", "-X", "DELETE", "localhost:" .. Config.opts.Port .. "/torrents/" .. info_hash .. "?DeleteFiles=" .. tostring(delete_files) },
@@ -193,26 +193,28 @@ end
 -- Menu integration
 local Menu = {}
 function Menu.create_torrent_menu(menu_id, index)
-  local menu_items = {}
+  local root_items = {}
   local to_update
   State.update()
 
   -- Add client control items
-  table.insert(menu_items, {
+  local client_control_items = {}
+  table.insert(client_control_items, {
+    title = State.client_running and "Stop Client" or "Start Client",
+    icon = State.client_running and "stop" or "play_arrow",
+    value = State.client_running and "client_stop" or "client_start"
+  })
+
+  table.insert(root_items, {
     title = "Client Controls",
-    items = {
-      {
-        title = State.client_running and "Stop Client" or "Start Client",
-        icon = State.client_running and "stop" or "play_arrow",
-        value = State.client_running and "client_stop" or "client_start"
-      }
-    }
+    items = client_control_items
   })
 
   if State.client_running then
-    local remove_torrents_submenu = {}
+    local remove_torrents_items = {}
     for i, v in pairs(State.torrents) do
-      table.insert(remove_torrents_submenu, {
+      -- Add remove torrent items
+      table.insert(remove_torrents_items, {
         title = v.Name,
         hint = string.format("%.1f GB", v.Length / (1024 * 1024 * 1024)),
         value = i,
@@ -221,21 +223,18 @@ function Menu.create_torrent_menu(menu_id, index)
           { name = "delete_files", icon = "delete_forever", label = "Delete torrent & files" }
         }
       })
-    end
 
-    if next(State.torrents) ~= nil then
-      -- Append to previous item (Client Controls)
-      table.insert(menu_items[#menu_items].items, {
-        title = "Remove Torrent",
-        items = remove_torrents_submenu
-      })
-    end
+      if next(State.torrents) ~= nil then
+        table.insert(client_control_items, {
+          title = "Remove Torrent",
+          items = remove_torrents_items
+        })
+      end
 
-    -- Add items for each torrent
-    for _, v in pairs(State.torrents) do
-      local submenu_items = {}
+      -- Add play torrent items
+      local play_torrent_items = {}
       if #v.Files > 1 then
-        table.insert(submenu_items, {
+        table.insert(play_torrent_items, {
           title = "Play all",
           value = v.Playlist,
           actions = {
@@ -245,7 +244,7 @@ function Menu.create_torrent_menu(menu_id, index)
         })
       end
       for _, file in pairs(v.Files) do
-        table.insert(submenu_items, {
+        table.insert(play_torrent_items, {
           title = file.Name,
           hint = string.format("%.1f MB", file.Length / (1024 * 1024)),
           active = mp.get_property("stream-open-filename", "") == file.URL and true or false,
@@ -258,16 +257,16 @@ function Menu.create_torrent_menu(menu_id, index)
         })
       end
 
-      table.insert(menu_items, {
+      table.insert(root_items, {
         title = v.Name,
         hint = string.format("%d files", #v.Files),
-        items = submenu_items
+        items = play_torrent_items
       })
     end
   end
 
   if menu_id and index then
-    for _, v in pairs(menu_items) do
+    for _, v in pairs(root_items) do
       if v.title == menu_id then
         to_update = v.items[index]
         break
@@ -278,7 +277,7 @@ function Menu.create_torrent_menu(menu_id, index)
   return {
     type = "torrent_menu",
     title = "Torrent Manager",
-    items = menu_items,
+    items = root_items,
     callback = { mp.get_script_name(), "menu-callback" }
   }, to_update
 end
