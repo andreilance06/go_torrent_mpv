@@ -137,6 +137,7 @@ function Client.close()
 
   State.client_running = false
   State.launched_by_us = false
+  State.torrents = {}
   msg.debug("Closed torrent server")
   return true
 end
