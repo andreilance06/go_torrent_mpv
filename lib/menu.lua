@@ -111,13 +111,6 @@ function Menu.create_torrent_menu(menu_id, index)
         Menu.update()
       end))
 
-      if next(State.torrents) ~= nil then
-        table.insert(client_control_items, {
-          title = "Remove Torrent",
-          items = remove_torrents_items
-        })
-      end
-
       -- Add play torrent items
       local play_torrent_items = {}
       if #v.Files > 1 then
@@ -186,6 +179,13 @@ function Menu.create_torrent_menu(menu_id, index)
         title = v.Name,
         hint = string.format("%d files", #v.Files),
         items = play_torrent_items
+      })
+    end
+
+    if next(State.torrents) ~= nil then
+      table.insert(client_control_items, {
+        title = "Remove Torrent",
+        items = remove_torrents_items
       })
     end
   end
