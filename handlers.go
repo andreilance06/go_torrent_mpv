@@ -52,6 +52,7 @@ func HandlePostTorrents(c *torrent.Client, config *ClientConfig) http.Handler {
 			return
 		}
 
+		<-t.GotInfo()
 		files, err := WrapFiles(t.Files(), config)
 		if err != nil {
 			log.Printf("error building playlist: %v", err)
@@ -85,6 +86,7 @@ func HandleGetInfoHash(c *torrent.Client, config *ClientConfig) http.Handler {
 			return
 		}
 
+		<-t.GotInfo()
 		files, err := WrapFiles(t.Files(), config)
 		if err != nil {
 			log.Printf("error building playlist: %v", err)
@@ -116,6 +118,11 @@ func HandleDeleteInfoHash(c *torrent.Client, config *ClientConfig) http.Handler 
 		w.Header().Set("Content-Length", "0")
 
 		if r.URL.Query().Get("DeleteFiles") != "true" {
+			return
+		}
+
+		if t.Info() == nil {
+			log.Printf("skip deleting torrent data: torrent info not available")
 			return
 		}
 
@@ -160,6 +167,7 @@ func HandleGetInfoHashFile(c *torrent.Client, config *ClientConfig) http.Handler
 			return
 		}
 
+		<-t.GotInfo()
 		for _, file := range t.Files() {
 			if file.DisplayPath() == query {
 				reader := file.NewReader()
