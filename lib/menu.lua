@@ -138,7 +138,14 @@ function Menu.create_torrent_menu(menu_id, index)
         end))
       end
 
+      local media_files = {}
       for _, file in pairs(v.Files) do
+        if string.match(file.MimeType, "video") or string.match(file.MimeType, "audio") then
+          table.insert(media_files, file)
+        end
+      end
+
+      for _, file in pairs(media_files) do
         table.insert(play_torrent_items, Menu.new_prop({
           title = file.Name,
           hint = string.format("%.1f MB", file.Length / (1024 * 1024)),

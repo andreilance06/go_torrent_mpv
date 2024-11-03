@@ -42,7 +42,13 @@ function State.update()
 
   local t = utils.parse_json(cmd.stdout)
   for _, v in pairs(t) do
-    State.torrents[v.InfoHash] = { Name = v.Name, Files = v.Files, Length = v.Length, Playlist = v.Playlist }
+    State.torrents[v.InfoHash] = {
+      Name = v.Name,
+      Files = v.Files,
+      Length = v.Length,
+      Playlist = v.Playlist,
+      MimeType = v.MimeType
+    }
   end
 
   return true
