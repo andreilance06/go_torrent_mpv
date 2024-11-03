@@ -111,9 +111,16 @@ function Menu.create_torrent_menu(menu_id, index)
         Menu.update()
       end))
 
+      local media_files = {}
+      for _, file in pairs(v.Files) do
+        if string.match(file.MimeType, "video") or string.match(file.MimeType, "audio") then
+          table.insert(media_files, file)
+        end
+      end
+
       -- Add play torrent items
       local play_torrent_items = {}
-      if #v.Files > 1 then
+      if #media_files > 1 then
         table.insert(play_torrent_items, Menu.new_prop({
           title = "Play all",
           value = v.Playlist,
@@ -136,13 +143,6 @@ function Menu.create_torrent_menu(menu_id, index)
             end)
           end
         end))
-      end
-
-      local media_files = {}
-      for _, file in pairs(v.Files) do
-        if string.match(file.MimeType, "video") or string.match(file.MimeType, "audio") then
-          table.insert(media_files, file)
-        end
       end
 
       for _, file in pairs(media_files) do
