@@ -51,9 +51,10 @@ type TorrentInfo struct {
 }
 
 type FileInfo struct {
-	Name   string
-	URL    string
-	Length int64
+	Name     string
+	URL      string
+	Length   int64
+	MimeType string
 }
 
 const (
@@ -141,9 +142,10 @@ func WrapFiles(Files []*torrent.File, config *ClientConfig) ([]FileInfo, error) 
 
 	for _, f := range Files {
 		files = append(files, FileInfo{
-			Name:   filepath.Base(f.DisplayPath()),
-			URL:    BuildUrl(f, localIP, config.Port),
-			Length: f.Length(),
+			Name:     filepath.Base(f.DisplayPath()),
+			URL:      BuildUrl(f, localIP, config.Port),
+			Length:   f.Length(),
+			MimeType: mime.TypeByExtension(filepath.Ext(f.DisplayPath())),
 		})
 	}
 
