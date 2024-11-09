@@ -195,9 +195,6 @@ func InitClient(userConfig *ClientConfig, db storage.ClientImplCloser) (*torrent
 		return nil, fmt.Errorf("error initializing torrent client: %w", err)
 	}
 
-	if err != nil {
-		return nil, fmt.Errorf("error resolving network interfaces: %w", err)
-	}
 	_dialerTCP := &net.Dialer{LocalAddr: &net.TCPAddr{IP: net.ParseIP(userConfig.LocalAddr)}}
 	dialerTCP := dialer.WithNetwork{Network: "tcp", Dialer: _dialerTCP}
 	c.AddDialer(dialerTCP)
