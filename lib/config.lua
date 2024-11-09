@@ -3,8 +3,9 @@ local utils = require("mp.utils")
 
 local Config = {
   opts = {
-    DisableUTP = true,
     DownloadDir = os.getenv("tmp"),
+    ListenAddr = "localhost:0",
+    LocalAddr = "0.0.0.0:0",
     MaxConnsPerTorrent = 200,
     Port = 6969,
     Readahead = 32 * 1024 * 1024,

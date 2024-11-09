@@ -22,6 +22,7 @@ import (
 	"github.com/anacrolix/generics"
 	"github.com/anacrolix/squirrel"
 	"github.com/anacrolix/torrent"
+	"github.com/anacrolix/torrent/dialer"
 	"github.com/anacrolix/torrent/metainfo"
 	"github.com/anacrolix/torrent/storage"
 	sqliteStorage "github.com/anacrolix/torrent/storage/sqlite"
@@ -31,8 +32,9 @@ import (
 )
 
 type ClientConfig struct {
-	DisableUTP         bool
 	DownloadDir        string
+	ListenAddr         string
+	LocalAddr          string
 	MaxConnsPerTorrent int
 	Port               int
 	Readahead          int64
@@ -182,14 +184,27 @@ func InitClient(userConfig *ClientConfig, db storage.ClientImplCloser) (*torrent
 	config.AlwaysWantConns = true
 	config.DefaultStorage = db
 	config.DialRateLimiter = rate.NewLimiter(rate.Inf, 0)
-	config.DisableUTP = userConfig.DisableUTP
+	config.DisableTCP = true
+	config.DisableUTP = true
 	config.EstablishedConnsPerTorrent = userConfig.MaxConnsPerTorrent
 	config.Seed = true
+	config.SetListenAddr(userConfig.ListenAddr)
 
 	c, err := torrent.NewClient(config)
 	if err != nil {
 		return nil, fmt.Errorf("error initializing torrent client: %w", err)
 	}
+
+	if err != nil {
+		return nil, fmt.Errorf("error resolving network interfaces: %w", err)
+	}
+	_dialerTCP := &net.Dialer{LocalAddr: &net.TCPAddr{IP: net.ParseIP(userConfig.LocalAddr)}}
+	dialerTCP := dialer.WithNetwork{Network: "tcp", Dialer: _dialerTCP}
+	c.AddDialer(dialerTCP)
+
+	_dialerUDP := &net.Dialer{LocalAddr: &net.UDPAddr{IP: net.ParseIP(userConfig.LocalAddr)}}
+	dialerUDP := dialer.WithNetwork{Network: "udp", Dialer: _dialerUDP}
+	c.AddDialer(dialerUDP)
 
 	if !userConfig.ResumeTorrents {
 		return c, nil
@@ -363,8 +378,9 @@ func run(ctx context.Context, config *ClientConfig) error {
 }
 
 func main() {
-	DisableUTP := flag.Bool("DisableUTP", true, "Disables UTP")
 	DownloadDir := flag.String("DownloadDir", os.TempDir(), "Directory where downloaded files are stored")
+	ListenAddr := flag.String("ListenAddr", "localhost:0", "Address to use for incoming connections.")
+	LocalAddr := flag.String("LocalAddr", "0.0.0.0:0", "Address to use for outgoing connections. Can be used to bind to a VPN.")
 	MaxConnsPerTorrent := flag.Int("MaxConnsPerTorrent", defaultMaxConns, "Maximum connections per torrent")
 	Port := flag.Int("Port", defaultHTTPPort, "HTTP Server port")
 	Readahead := flag.Int64("Readahead", defaultReadahead, "Bytes ahead of read to prioritize. Set to a negative value to use the default readahead function.")
@@ -374,8 +390,9 @@ func main() {
 	flag.Parse()
 
 	config := ClientConfig{
-		DisableUTP:         *DisableUTP,
 		DownloadDir:        *DownloadDir,
+		ListenAddr:         *ListenAddr,
+		LocalAddr:          *LocalAddr,
 		MaxConnsPerTorrent: *MaxConnsPerTorrent,
 		Port:               *Port,
 		Readahead:          *Readahead,
