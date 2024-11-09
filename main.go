@@ -376,7 +376,7 @@ func run(ctx context.Context, config *ClientConfig) error {
 
 func main() {
 	DownloadDir := flag.String("DownloadDir", os.TempDir(), "Directory where downloaded files are stored")
-	ListenAddr := flag.String("ListenAddr", "localhost:0", "Address to use for incoming connections.")
+	ListenAddr := flag.String("ListenAddr", "localhost:0", "Address to listen for incoming connections.")
 	LocalAddr := flag.String("LocalAddr", "0.0.0.0:0", "Address to use for outgoing connections. Can be used to bind to a VPN.")
 	MaxConnsPerTorrent := flag.Int("MaxConnsPerTorrent", defaultMaxConns, "Maximum connections per torrent")
 	Port := flag.Int("Port", defaultHTTPPort, "HTTP Server port")
