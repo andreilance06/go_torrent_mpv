@@ -57,6 +57,7 @@ type FileInfo struct {
 	URL      string
 	Length   int64
 	MimeType string
+	depth    int
 }
 
 const (
@@ -148,10 +149,15 @@ func WrapFiles(Files []*torrent.File, config *ClientConfig) ([]FileInfo, error) 
 			URL:      BuildUrl(f, localIP, config.Port),
 			Length:   f.Length(),
 			MimeType: mime.TypeByExtension(filepath.Ext(f.DisplayPath())),
+			depth:    len(strings.Split(f.DisplayPath(), "/")),
 		})
 	}
 
 	sort.Slice(files, func(i, j int) bool {
+		if files[i].depth != files[j].depth {
+			return (files[i].depth < files[j].depth)
+		}
+
 		return files[i].Name < files[j].Name
 	})
 
