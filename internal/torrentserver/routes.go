@@ -1,4 +1,4 @@
-package main
+package torrentserver
 
 import (
 	"context"
@@ -6,9 +6,10 @@ import (
 	pprof "net/http/pprof"
 
 	"github.com/anacrolix/torrent"
+	"github.com/andreilance06/go_torrent_mpv/internal/options"
 )
 
-func RegisterRoutes(mux *http.ServeMux, c *torrent.Client, config *ClientConfig, cancel context.CancelFunc) {
+func RegisterRoutes(mux *http.ServeMux, c *torrent.Client, config *options.Config, cancel context.CancelFunc) {
 	mux.Handle("GET /torrents", HandleGetTorrents(c, config))
 	mux.Handle("POST /torrents", HandlePostTorrents(c, config))
 	mux.Handle("GET /torrents/{infohash}", HandleGetInfoHash(c, config))

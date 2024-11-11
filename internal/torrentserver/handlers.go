@@ -1,4 +1,4 @@
-package main
+package torrentserver
 
 import (
 	"context"
@@ -15,9 +15,11 @@ import (
 	"github.com/anacrolix/squirrel"
 	"github.com/anacrolix/torrent"
 	"github.com/anacrolix/torrent/types/infohash"
+	"github.com/andreilance06/go_torrent_mpv/internal/options"
+	"github.com/andreilance06/go_torrent_mpv/internal/torrentclient"
 )
 
-func HandleGetTorrents(c *torrent.Client, config *ClientConfig) http.Handler {
+func HandleGetTorrents(c *torrent.Client, config *options.Config) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		parsed, err := MarshalTorrents(c, config)
@@ -36,7 +38,7 @@ func HandleGetTorrents(c *torrent.Client, config *ClientConfig) http.Handler {
 	})
 }
 
-func HandlePostTorrents(c *torrent.Client, config *ClientConfig) http.Handler {
+func HandlePostTorrents(c *torrent.Client, config *options.Config) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
@@ -45,7 +47,7 @@ func HandlePostTorrents(c *torrent.Client, config *ClientConfig) http.Handler {
 			return
 		}
 
-		t, err := AddTorrent(c, string(body))
+		t, err := torrentclient.AddTorrent(c, string(body))
 		if err != nil {
 			log.Printf("error adding torrent: %v", err)
 			http.Error(w, fmt.Sprintf("Error adding torrent: %v", err), http.StatusBadRequest)
@@ -69,14 +71,14 @@ func HandlePostTorrents(c *torrent.Client, config *ClientConfig) http.Handler {
 			return
 		}
 
-		if err := saveTorrentFile(config, t); err != nil {
+		if err := SaveTorrentFile(config, t); err != nil {
 			log.Print(err)
 		}
 
 	})
 }
 
-func HandleGetInfoHash(c *torrent.Client, config *ClientConfig) http.Handler {
+func HandleGetInfoHash(c *torrent.Client, config *options.Config) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ih := infohash.FromHexString(r.PathValue("infohash"))
 		t, ok := c.Torrent(ih)
@@ -101,7 +103,7 @@ func HandleGetInfoHash(c *torrent.Client, config *ClientConfig) http.Handler {
 	})
 }
 
-func HandleDeleteInfoHash(c *torrent.Client, config *ClientConfig) http.Handler {
+func HandleDeleteInfoHash(c *torrent.Client, config *options.Config) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ih := infohash.FromHexString(r.PathValue("infohash"))
 		t, ok := c.Torrent(ih)
@@ -126,7 +128,7 @@ func HandleDeleteInfoHash(c *torrent.Client, config *ClientConfig) http.Handler 
 			return
 		}
 
-		sq, err := squirrel.NewCache(createDBOptions(config))
+		sq, err := squirrel.NewCache(torrentclient.CreateDBOptions(config))
 		if err != nil {
 			log.Printf("error opening database: %v", err)
 			return
@@ -156,7 +158,7 @@ func HandleDeleteInfoHash(c *torrent.Client, config *ClientConfig) http.Handler 
 	})
 }
 
-func HandleGetInfoHashFile(c *torrent.Client, config *ClientConfig) http.Handler {
+func HandleGetInfoHashFile(c *torrent.Client, config *options.Config) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ih := infohash.FromHexString(r.PathValue("infohash"))
 		query := r.PathValue("query")
