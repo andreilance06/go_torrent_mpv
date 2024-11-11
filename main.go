@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/anacrolix/generics"
+	"github.com/anacrolix/missinggo/v2"
 	"github.com/anacrolix/squirrel"
 	"github.com/anacrolix/torrent"
 	"github.com/anacrolix/torrent/dialer"
@@ -31,6 +32,11 @@ import (
 	"golang.org/x/sys/windows"
 	"golang.org/x/time/rate"
 )
+
+type TcpSocket struct {
+	torrent.Listener
+	torrent.NetworkDialer
+}
 
 type ClientConfig struct {
 	DownloadDir        string
@@ -197,7 +203,7 @@ func InitStorage(config *ClientConfig) (storage.ClientImplCloser, error) {
 	return sqliteStorage.NewDirectStorage(createDBOptions(config))
 }
 
-func InitClient(userConfig *ClientConfig, db storage.ClientImplCloser) (*torrent.Client, error) {
+func InitClient(userConfig *ClientConfig, db storage.ClientImplCloser, ctx context.Context) (*torrent.Client, error) {
 	config := torrent.NewDefaultClientConfig()
 	config.AlwaysWantConns = true
 	config.DefaultStorage = db
@@ -206,20 +212,45 @@ func InitClient(userConfig *ClientConfig, db storage.ClientImplCloser) (*torrent
 	config.DisableUTP = true
 	config.EstablishedConnsPerTorrent = userConfig.MaxConnsPerTorrent
 	config.Seed = true
-	config.SetListenAddr(userConfig.ListenAddr)
 
 	c, err := torrent.NewClient(config)
 	if err != nil {
 		return nil, fmt.Errorf("error initializing torrent client: %w", err)
 	}
 
-	_dialerTCP := &net.Dialer{LocalAddr: &net.TCPAddr{IP: net.ParseIP(userConfig.LocalAddr)}}
-	dialerTCP := dialer.WithNetwork{Network: "tcp", Dialer: _dialerTCP}
-	c.AddDialer(dialerTCP)
+	_, _, err = missinggo.ParseHostPort(userConfig.ListenAddr)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing listen address: %w", err)
+	}
 
-	_dialerUDP := &net.Dialer{LocalAddr: &net.UDPAddr{IP: net.ParseIP(userConfig.LocalAddr)}}
-	dialerUDP := dialer.WithNetwork{Network: "udp", Dialer: _dialerUDP}
-	c.AddDialer(dialerUDP)
+	TcpListenConfig := net.ListenConfig{KeepAlive: -1}
+	l, err := TcpListenConfig.Listen(ctx, "tcp", userConfig.ListenAddr)
+	if err != nil {
+		return nil, fmt.Errorf("error listening for tcp connections: %w", err)
+	}
+
+	localAddr, err := net.ResolveTCPAddr("tcp", userConfig.LocalAddr)
+	if err != nil {
+		return nil, fmt.Errorf("error resolving local address: %w", err)
+	}
+
+	_dialerTCP := &net.Dialer{
+		FallbackDelay: -1,
+		KeepAlive:     -1,
+		LocalAddr:     localAddr,
+		Control: func(network, address string, c syscall.RawConn) error {
+			_ = c.Control(func(fd uintptr) {
+				syscall.SetsockoptLinger(syscall.Handle(fd), syscall.SOL_SOCKET, syscall.SO_LINGER, &syscall.Linger{Onoff: 0, Linger: 0})
+			})
+			return nil
+		},
+	}
+	s := TcpSocket{
+		Listener:      l,
+		NetworkDialer: dialer.WithNetwork{Network: "tcp", Dialer: _dialerTCP},
+	}
+	c.AddDialer(s)
+	c.AddListener(s)
 
 	if !userConfig.ResumeTorrents {
 		return c, nil
@@ -369,7 +400,7 @@ func run(ctx context.Context, config *ClientConfig) error {
 		return err
 	}
 
-	c, err := InitClient(config, db)
+	c, err := InitClient(config, db, ctx)
 	if err != nil {
 		return err
 	}
@@ -398,8 +429,8 @@ func run(ctx context.Context, config *ClientConfig) error {
 
 func main() {
 	DownloadDir := flag.String("DownloadDir", os.TempDir(), "Directory where downloaded files are stored")
-	ListenAddr := flag.String("ListenAddr", "localhost:0", "Address to listen for incoming connections.")
-	LocalAddr := flag.String("LocalAddr", "0.0.0.0:0", "Address to use for outgoing connections. Can be used to bind to a VPN.")
+	ListenAddr := flag.String("ListenAddr", ":0", "Address to listen for incoming connections.")
+	LocalAddr := flag.String("LocalAddr", ":0", "Address to use for outgoing connections. Can be used to bind to a VPN.")
 	MaxConnsPerTorrent := flag.Int("MaxConnsPerTorrent", defaultMaxConns, "Maximum connections per torrent")
 	Port := flag.Int("Port", defaultHTTPPort, "HTTP Server port")
 	Readahead := flag.Int64("Readahead", defaultReadahead, "Bytes ahead of read to prioritize. Set to a negative value to use the default readahead function.")

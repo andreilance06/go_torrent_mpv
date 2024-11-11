@@ -6,6 +6,7 @@ toolchain go1.23.1
 
 require (
 	github.com/anacrolix/generics v0.0.3-0.20240902042256-7fb2702ef0ca
+	github.com/anacrolix/missinggo/v2 v2.7.4
 	github.com/anacrolix/squirrel v0.6.4
 	github.com/anacrolix/torrent v1.57.2-0.20241017235801-4d8437a05621
 	golang.org/x/sys v0.26.0
@@ -23,7 +24,6 @@ require (
 	github.com/anacrolix/log v0.16.0 // indirect
 	github.com/anacrolix/missinggo v1.3.0 // indirect
 	github.com/anacrolix/missinggo/perf v1.0.0 // indirect
-	github.com/anacrolix/missinggo/v2 v2.7.4 // indirect
 	github.com/anacrolix/mmsg v1.0.0 // indirect
 	github.com/anacrolix/multiless v0.4.0 // indirect
 	github.com/anacrolix/stm v0.4.0 // indirect
