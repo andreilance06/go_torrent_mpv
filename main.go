@@ -16,6 +16,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -219,7 +220,9 @@ func InitClient(userConfig *ClientConfig, db storage.ClientImplCloser) (*torrent
 		return c, nil
 	}
 
+	wg := sync.WaitGroup{}
 	for _, v := range files {
+		wg.Add(1)
 		go func() {
 			_, err := AddTorrent(c, filepath.Join(userConfig.DownloadDir, "torrents", v.Name()))
 			if err != nil {
@@ -229,8 +232,10 @@ func InitClient(userConfig *ClientConfig, db storage.ClientImplCloser) (*torrent
 					err,
 				)
 			}
+			wg.Done()
 		}()
 	}
+	wg.Wait()
 
 	return c, nil
 }
