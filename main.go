@@ -136,13 +136,24 @@ func WrapTorrent(t *torrent.Torrent, config *ClientConfig) (TorrentInfo, error) 
 }
 
 func WrapFiles(Files []*torrent.File, config *ClientConfig) ([]FileInfo, error) {
+	files := make([]FileInfo, 0, len(Files))
+
 	ips, err := GetLocalIPs()
 	if err != nil {
-		return make([]FileInfo, 0), err
+		return files, err
 	}
 
-	localIP := ips[len(ips)-1]
-	files := make([]FileInfo, 0, len(Files))
+	var localIP net.IP
+	for _, ip := range ips {
+		if ip[0] == 192 {
+			localIP = ip
+			break
+		}
+	}
+
+	if localIP == nil {
+		return files, errors.New("error wrapping files: no local ip found")
+	}
 
 	for _, f := range Files {
 		files = append(files, FileInfo{
