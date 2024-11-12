@@ -88,12 +88,12 @@ function Menu.create_torrent_menu(menu_id, index)
 
   if State.client_running then
     local remove_torrents_items = {}
-    for i, v in pairs(State.torrents) do
+    for _, v in pairs(State.torrents) do
       -- Add remove torrent items
       table.insert(remove_torrents_items, Menu.new_prop({
         title = v.Name,
         hint = string.format("%.1f GB", v.Length / (1024 * 1024 * 1024)),
-        value = i,
+        value = v.InfoHash,
         actions = {
           { name = "delete",       icon = "delete",         label = "Delete torrent" },
           { name = "delete_files", icon = "delete_forever", label = "Delete torrent & files" }

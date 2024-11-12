@@ -42,14 +42,19 @@ function State.update()
 
   local t = utils.parse_json(cmd.stdout)
   for _, v in pairs(t) do
-    State.torrents[v.InfoHash] = {
+    table.insert(State.torrents, {
+      InfoHash = v.InfoHash,
       Name = v.Name,
       Files = v.Files,
       Length = v.Length,
       Playlist = v.Playlist,
       MimeType = v.MimeType
-    }
+    })
   end
+
+  table.sort(State.torrents, function(a, b)
+    return a.Name:lower() < b.Name:lower()
+  end)
 
   return true
 end

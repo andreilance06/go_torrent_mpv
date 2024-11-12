@@ -91,7 +91,15 @@ function Client.remove(info_hash, delete_files)
     return false
   end
 
-  if not State.torrents[info_hash] then
+  local exists = false
+  for _, v in pairs(State.torrents) do
+    if v.InfoHash == info_hash then
+      exists = true
+      break
+    end
+  end
+
+  if not exists then
     msg.error("error deleting torrent: torrent", info_hash, "does not exist")
     return false
   end
