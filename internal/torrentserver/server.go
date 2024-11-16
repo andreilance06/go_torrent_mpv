@@ -17,6 +17,7 @@ import (
 
 	"github.com/anacrolix/torrent"
 	"github.com/andreilance06/go_torrent_mpv/internal/options"
+	defaultroute "github.com/nixigaj/go-default-route"
 )
 
 const (
@@ -37,25 +38,6 @@ type FileInfo struct {
 	Length   int64
 	MimeType string
 	depth    int
-}
-
-func GetLocalIPs() ([]net.IP, error) {
-	var ips []net.IP
-	addresses, err := net.InterfaceAddrs()
-	if err != nil {
-		return nil, fmt.Errorf("error getting local interface addresses: %w", err)
-	}
-
-	for _, addr := range addresses {
-		ipnet, ok := addr.(*net.IPNet)
-		if !ok || ipnet.IP.IsLoopback() {
-			continue
-		}
-		if ip := ipnet.IP.To4(); ip != nil {
-			ips = append(ips, ip)
-		}
-	}
-	return ips, nil
 }
 
 func SaveTorrentFile(config *options.Config, t *torrent.Torrent) error {
@@ -142,25 +124,13 @@ func WrapTorrent(t *torrent.Torrent, config *options.Config) (TorrentInfo, error
 }
 
 func WrapFiles(Files []*torrent.File, config *options.Config) ([]FileInfo, error) {
-	files := make([]FileInfo, 0, len(Files))
 
-	ips, err := GetLocalIPs()
+	localIP, err := GetLocalIP()
 	if err != nil {
-		return files, err
+		return nil, fmt.Errorf("error wrapping files: %w", err)
 	}
 
-	var localIP net.IP
-	for _, ip := range ips {
-		localIP = ip
-		if ip[0] == 192 {
-			break
-		}
-	}
-
-	if localIP == nil {
-		return files, errors.New("error wrapping files: no local ip found")
-	}
-
+	files := make([]FileInfo, 0, len(Files))
 	for _, f := range Files {
 		files = append(files, FileInfo{
 			Name:     filepath.Base(f.DisplayPath()),
@@ -180,6 +150,46 @@ func WrapFiles(Files []*torrent.File, config *options.Config) ([]FileInfo, error
 	})
 
 	return files, nil
+}
+
+func GetLocalIP() (net.IP, error) {
+	defaultRoute, err := defaultroute.DefaultRoute()
+	if err != nil {
+		return nil, fmt.Errorf("error getting local ip: %w", err)
+	}
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return nil, fmt.Errorf("error getting local ip: %w", err)
+	}
+
+	var iface net.Interface
+	for _, i := range interfaces {
+		if i.Index == defaultRoute.InterfaceIndex {
+			iface = i
+			break
+		}
+	}
+
+	addrs, err := iface.Addrs()
+	if err != nil {
+		return nil, fmt.Errorf("error getting local ip: %w", err)
+	}
+
+	var localIP net.IP
+	for _, addr := range addrs {
+		ipnet, ok := addr.(*net.IPNet)
+		if !ok || ipnet.IP.IsLoopback() {
+			continue
+		}
+		if ip := ipnet.IP.To4(); ip != nil {
+			localIP = ip
+			if ip[0] == 192 {
+				break
+			}
+		}
+	}
+
+	return localIP, nil
 }
 
 func InitServer(c *torrent.Client, config *options.Config, cancel context.CancelFunc) *http.Server {
