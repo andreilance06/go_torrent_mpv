@@ -151,8 +151,8 @@ func WrapFiles(Files []*torrent.File, config *options.Config) ([]FileInfo, error
 
 	var localIP net.IP
 	for _, ip := range ips {
+		localIP = ip
 		if ip[0] == 192 {
-			localIP = ip
 			break
 		}
 	}
