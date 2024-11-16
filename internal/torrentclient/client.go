@@ -48,6 +48,7 @@ func InitClient(userConfig *options.Config, db storage.ClientImplCloser, ctx con
 	config.DisableTCP = true
 	config.DisableUTP = true
 	config.EstablishedConnsPerTorrent = userConfig.MaxConnsPerTorrent
+	config.PeriodicallyAnnounceTorrentsToDht = false
 	config.Seed = true
 
 	c, err := torrent.NewClient(config)
