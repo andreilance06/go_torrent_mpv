@@ -24,6 +24,9 @@ const (
 	shutdownTimeout = 9 * time.Second
 )
 
+var localIP net.IP
+var ipErr error
+
 type TorrentInfo struct {
 	Name     string
 	InfoHash string
@@ -60,7 +63,7 @@ func SaveTorrentFile(config *options.Config, t *torrent.Torrent) error {
 	return nil
 }
 
-func BuildUrl(f *torrent.File, localIP net.IP, Port int) string {
+func BuildUrl(f *torrent.File, Port int) string {
 	return fmt.Sprintf("http://%s:%d/torrents/%s/%s", localIP, Port, f.Torrent().InfoHash(), f.DisplayPath())
 }
 
@@ -83,8 +86,6 @@ func MarshalTorrents(c *torrent.Client, config *options.Config) ([]byte, error) 
 	torrents := make([]TorrentInfo, 0, len(c.Torrents()))
 
 	for _, t := range c.Torrents() {
-		<-t.GotInfo()
-
 		torrentInfo, err := WrapTorrent(t, config)
 		if err != nil {
 			return nil, err
@@ -125,16 +126,18 @@ func WrapTorrent(t *torrent.Torrent, config *options.Config) (TorrentInfo, error
 
 func WrapFiles(Files []*torrent.File, config *options.Config) ([]FileInfo, error) {
 
-	localIP, err := GetLocalIP()
-	if err != nil {
-		return nil, fmt.Errorf("error wrapping files: %w", err)
+	if localIP.To4() == nil || ipErr != nil {
+		localIP, ipErr = GetLocalIP()
+		if ipErr != nil {
+			return nil, fmt.Errorf("error wrapping files: %w", ipErr)
+		}
 	}
 
 	files := make([]FileInfo, 0, len(Files))
 	for _, f := range Files {
 		files = append(files, FileInfo{
 			Name:     filepath.Base(f.DisplayPath()),
-			URL:      BuildUrl(f, localIP, config.Port),
+			URL:      BuildUrl(f, config.Port),
 			Length:   f.Length(),
 			MimeType: mime.TypeByExtension(filepath.Ext(f.DisplayPath())),
 			depth:    len(strings.Split(f.DisplayPath(), "/")),
@@ -175,21 +178,21 @@ func GetLocalIP() (net.IP, error) {
 		return nil, fmt.Errorf("error getting local ip: %w", err)
 	}
 
-	var localIP net.IP
+	var _localIP net.IP
 	for _, addr := range addrs {
 		ipnet, ok := addr.(*net.IPNet)
 		if !ok || ipnet.IP.IsLoopback() {
 			continue
 		}
 		if ip := ipnet.IP.To4(); ip != nil {
-			localIP = ip
+			_localIP = ip
 			if ip[0] == 192 {
 				break
 			}
 		}
 	}
 
-	return localIP, nil
+	return _localIP, nil
 }
 
 func InitServer(c *torrent.Client, config *options.Config, cancel context.CancelFunc) *http.Server {

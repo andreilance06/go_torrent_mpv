@@ -25,7 +25,7 @@ func HandleGetTorrents(c *torrent.Client, config *options.Config) http.Handler {
 		parsed, err := MarshalTorrents(c, config)
 		if err != nil {
 			log.Printf("error encoding JSON response: %v", err)
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			http.Error(w, fmt.Sprintf("Error encoding JSON response: %v", err), http.StatusInternalServerError)
 			return
 		}
 
@@ -92,7 +92,7 @@ func HandleGetInfoHash(c *torrent.Client, config *options.Config) http.Handler {
 		files, err := WrapFiles(t.Files(), config)
 		if err != nil {
 			log.Printf("error building playlist: %v", err)
-			http.Error(w, fmt.Sprintf("Error building playlist %v", err), http.StatusInternalServerError)
+			http.Error(w, fmt.Sprintf("Error building playlist: %v", err), http.StatusInternalServerError)
 			return
 		}
 
