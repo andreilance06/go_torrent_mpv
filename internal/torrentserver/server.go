@@ -165,6 +165,10 @@ func GetLocalIP() (net.IP, error) {
 		return nil, fmt.Errorf("error getting local ip: %w", err)
 	}
 
+	if defaultRoute.InterfaceIndex == 0 {
+		return net.ParseIP("127.0.0.1").To4(), nil
+	}
+
 	var iface net.Interface
 	for _, i := range interfaces {
 		if i.Index == defaultRoute.InterfaceIndex {
