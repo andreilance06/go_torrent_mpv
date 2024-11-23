@@ -228,9 +228,11 @@ function Menu.handle_callback(json_event)
   local event = utils.parse_json(json_event)
 
   local item = Menu.get_item(event.menu_id, event.index)
-  local fn = Menu.item_callbacks[item.id]
-  if fn then
-    fn(event)
+  if item then
+    local fn = Menu.item_callbacks[item.id]
+    if fn then
+      fn(event)
+    end
   end
 end
 
