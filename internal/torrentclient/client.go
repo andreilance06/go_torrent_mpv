@@ -46,19 +46,21 @@ func InitClient(userConfig *options.Config, db storage.ClientImplCloser, ctx con
 	config.DefaultStorage = db
 	config.DialRateLimiter = rate.NewLimiter(rate.Inf, 0)
 	config.DisableTCP = true
-	config.DisableUTP = true
+	// config.DisableUTP = true
 	config.EstablishedConnsPerTorrent = userConfig.MaxConnsPerTorrent
 	config.PeriodicallyAnnounceTorrentsToDht = false
 	config.Seed = true
 
+	_, _, err := missinggo.ParseHostPort(userConfig.ListenAddr)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing listen address: %w", err)
+	}
+
+	config.SetListenAddr(userConfig.ListenAddr)
+
 	c, err := torrent.NewClient(config)
 	if err != nil {
 		return nil, fmt.Errorf("error initializing torrent client: %w", err)
-	}
-
-	_, _, err = missinggo.ParseHostPort(userConfig.ListenAddr)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing listen address: %w", err)
 	}
 
 	TcpListenConfig := net.ListenConfig{KeepAlive: -1}
