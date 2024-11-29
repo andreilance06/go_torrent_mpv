@@ -72,12 +72,12 @@ function Client.add(torrent_url)
   local cmd = mp.command_native({
     name = "subprocess",
     capture_stdout = true,
-    args = { "curl", "-s", "--retry", "10", "--retry-delay", "1", "--retry-connrefused", "-d",
+    args = { "curl", "-s", "-f", "--retry", "10", "--retry-delay", "1", "--retry-connrefused", "-d",
       torrent_url, "localhost:" .. Config.opts.Port .. "/torrents" }
   })
 
   local playlist = cmd.stdout
-  if not playlist or #playlist == 0 then
+  if cmd.status ~= 0 or not playlist or #playlist == 0 then
     msg.debug("Unable to get playlist for", torrent_url)
     return nil
   end
