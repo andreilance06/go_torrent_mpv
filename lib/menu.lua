@@ -17,6 +17,7 @@ end
 function Menu.get_item(menu_id, index)
   local items = Menu.root_items
   local separator = " > "
+  if menu_id == nil or index == nil then return end
   for match in (menu_id .. separator):gmatch("(.-)" .. separator) do
     for _, v in pairs(items) do
       if v.title == match then
